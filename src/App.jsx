@@ -31,6 +31,9 @@ export default function App() {
   // Whether user wants to use a custom flag
   const [useCustomFlag, setUseCustomFlag] = useState(false);
 
+  // whether the uploaded flag image is showing. Might remove this later when I have the full image library
+  const [flagPreviewUrl, setFlagPreviewUrl] = useState("");
+
   /**
    * EXPORT FUNCTION
    * Builds the mod folder structure and downloads it as a zip
@@ -172,6 +175,7 @@ export default function App() {
    * Generate preview output whenever inputs change
    */
   useEffect(() => {
+    
     if (!existingText || !baseCountry) return;
 
     try {
@@ -181,7 +185,8 @@ export default function App() {
         newCountryTag: newTag,
         newCountryName: newName,
         unitToken: "NAMES_ABCD",
-        useCustomFlag: false, // preview does NOT include custom flag logic yet
+        useCustomFlag,
+        customFlagFileName: customFlagFile ? customFlagFile.name : null,
         addTextFormatEntry: true,
       });
 
@@ -196,6 +201,20 @@ export default function App() {
     }
   }, [existingText, baseCountry, newTag, newName]);
 
+  useEffect(() => {
+  if (!customFlagFile) {
+    setFlagPreviewUrl("");
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(customFlagFile);
+  setFlagPreviewUrl(objectUrl);
+
+  return () => {
+    URL.revokeObjectURL(objectUrl);
+  };
+  }, [customFlagFile]);
+  
   return (
     <div style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
       <h1>WARNO Test</h1>
@@ -229,6 +248,23 @@ export default function App() {
           />
         </div>
       )}
+// FLAG PREVIEW
+{useCustomFlag && flagPreviewUrl && (
+  <div style={{ marginTop: 12 }}>
+    <div style={{ marginBottom: 6, fontWeight: "bold" }}>Flag Preview</div>
+    <img
+      src={flagPreviewUrl}
+      alt="Uploaded flag preview"
+      style={{
+        width: 160,
+        height: "auto",
+        border: "1px solid #ccc",
+        padding: 4,
+        background: "#fff",
+      }}
+    />
+  </div>
+)}
 
       {/* Main inputs */}
       <div style={{ display: "grid", gap: 12, maxWidth: 500, marginBottom: 20 }}>
