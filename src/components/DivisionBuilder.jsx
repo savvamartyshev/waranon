@@ -270,6 +270,7 @@ const styles = {
   },
   title: {
     marginBottom: "24px",
+    color: "#ffffff",
   },
   topBar: {
     display: "grid",
