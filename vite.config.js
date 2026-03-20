@@ -4,9 +4,9 @@ import babel from '@rolldown/plugin-babel'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/waranon/',
   plugins: [
     react(),
-    base: '/waranon/',
     babel({ presets: [reactCompilerPreset()] })
   ],
 })
