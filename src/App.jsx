@@ -65,8 +65,8 @@ export default function App() {
     async function loadFiles() {
       try {
         const [uiCountriesRes, divisionsRes] = await Promise.all([
-          fetch("/UISpecificCountriesInfos.txt"),
-          fetch("/Divisions.txt"),
+              fetch(`${import.meta.env.BASE_URL}UISpecificCountriesInfos.txt`),
+              fetch(`${import.meta.env.BASE_URL}Divisions.txt`),
         ]);
 
         const [uiSpecificCountriesText, divisionsText] = await Promise.all([
