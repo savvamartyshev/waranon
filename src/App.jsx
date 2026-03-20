@@ -4,6 +4,7 @@ import {
   parseCountriesInfoEntries,
   generateNewCountryData,
   applyNewCountryToUiSpecificCountriesFile,
+  validateNewCountryData,
 } from "./generators/country";
 
 export default function App() {
@@ -34,11 +35,31 @@ export default function App() {
   // whether the uploaded flag image is showing. Might remove this later when I have the full image library
   const [flagPreviewUrl, setFlagPreviewUrl] = useState("");
 
+  // validation error variables
+  const [validationErrors, setValidationErrors] = useState([]);
+
+  // validation warning variables
+  const [validationWarnings, setValidationWarnings] = useState([]);
+
   /**
    * EXPORT FUNCTION
    * Builds the mod folder structure and downloads it as a zip
    */
   async function handleExport() {
+    const validation = validateNewCountryData({
+      fileText: existingText,
+      newCountryTag: newTag,
+      newCountryName: newName,
+      unitToken: "NAMES_ABCD",
+      useCustomFlag,
+      customFlagFileName: customFlagFile ? customFlagFile.name : null,
+    });
+
+    if (!validation.isValid) {
+      alert(validation.errors.join("\n"));
+      return;
+    }
+
     // Safety check: file must be loaded first
     if (!existingText) {
       alert("File not loaded yet!");
@@ -67,7 +88,7 @@ export default function App() {
       // Apply changes to UISpecificCountriesInfos file
       const updatedText = applyNewCountryToUiSpecificCountriesFile(
         existingText,
-        generated
+        generated,
       );
 
       // Create zip file
@@ -86,19 +107,19 @@ export default function App() {
       // Add updated UISpecificCountriesInfos.ndf
       root.file(
         "GameData/Generated/UserInterface/UISpecificCountriesInfos.ndf",
-        updatedText
+        updatedText,
       );
 
       // Add UnitNames file
       root.file(
         `GameData/Generated/Gameplay/Gfx/UnitNames/UnitNames_${generated.countryTag}.NDF`,
-        generated.unitNamesFile
+        generated.unitNamesFile,
       );
 
       // Add localization CSV
       root.file(
         `GameData/Localisation/${modName}/INTERFACE_OUTGAME.csv`,
-        generated.interfaceCsv
+        generated.interfaceCsv,
       );
 
       // Debug logs (can remove later)
@@ -110,12 +131,12 @@ export default function App() {
       if (useCustomFlag && customFlagFile) {
         root.file(
           `GameData/Assets/2D/Interface/Common/Flags/${generated.flagFileName}`,
-          customFlagFile
+          customFlagFile,
         );
 
         console.log(
           "PNG added to zip at:",
-          `GameData/Assets/2D/Interface/Common/Flags/${generated.flagFileName}`
+          `GameData/Assets/2D/Interface/Common/Flags/${generated.flagFileName}`,
         );
       }
 
@@ -175,7 +196,6 @@ export default function App() {
    * Generate preview output whenever inputs change
    */
   useEffect(() => {
-    
     if (!existingText || !baseCountry) return;
 
     try {
@@ -192,7 +212,7 @@ export default function App() {
 
       const updatedText = applyNewCountryToUiSpecificCountriesFile(
         existingText,
-        generated
+        generated,
       );
 
       setOutput(updatedText);
@@ -202,19 +222,19 @@ export default function App() {
   }, [existingText, baseCountry, newTag, newName]);
 
   useEffect(() => {
-  if (!customFlagFile) {
-    setFlagPreviewUrl("");
-    return;
-  }
+    if (!customFlagFile) {
+      setFlagPreviewUrl("");
+      return;
+    }
 
-  const objectUrl = URL.createObjectURL(customFlagFile);
-  setFlagPreviewUrl(objectUrl);
+    const objectUrl = URL.createObjectURL(customFlagFile);
+    setFlagPreviewUrl(objectUrl);
 
-  return () => {
-    URL.revokeObjectURL(objectUrl);
-  };
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
   }, [customFlagFile]);
-  
+
   return (
     <div style={{ padding: 20, fontFamily: "Arial, sans-serif" }}>
       <h1>WARNO Test</h1>
@@ -248,26 +268,31 @@ export default function App() {
           />
         </div>
       )}
-// FLAG PREVIEW
-{useCustomFlag && flagPreviewUrl && (
-  <div style={{ marginTop: 12 }}>
-    <div style={{ marginBottom: 6, fontWeight: "bold" }}>Flag Preview</div>
-    <img
-      src={flagPreviewUrl}
-      alt="Uploaded flag preview"
-      style={{
-        width: 160,
-        height: "auto",
-        border: "1px solid #ccc",
-        padding: 4,
-        background: "#fff",
-      }}
-    />
-  </div>
-)}
+
+      {/*display current flag png selected*/}
+      {useCustomFlag && flagPreviewUrl && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ marginBottom: 6, fontWeight: "bold" }}>
+            Flag Preview
+          </div>
+          <img
+            src={flagPreviewUrl}
+            alt="Uploaded flag preview"
+            style={{
+              width: 160,
+              height: "auto",
+              border: "1px solid #ccc",
+              padding: 4,
+              background: "#fff",
+            }}
+          />
+        </div>
+      )}
 
       {/* Main inputs */}
-      <div style={{ display: "grid", gap: 12, maxWidth: 500, marginBottom: 20 }}>
+      <div
+        style={{ display: "grid", gap: 12, maxWidth: 500, marginBottom: 20 }}
+      >
         <div>
           <label>Base Country</label>
           <br />

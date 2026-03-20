@@ -14,6 +14,87 @@ export function buildFlagTextureToken(countryTag) {
   return `CommonTexture_MotherCountryFlag_${countryTag}`;
 }
 
+//centralized duplicate check function 
+export function validateNewCountryData({
+  fileText,
+  newCountryTag,
+  newCountryName,
+  unitToken,
+  useCustomFlag = false,
+  customFlagFileName = null,
+}) {
+  const errors = [];
+  const warnings = [];
+
+  const countryTag = sanitizeCountryTag(newCountryTag);
+  const nameToken = buildNameToken(countryTag);
+  const flagTextureToken = buildFlagTextureToken(countryTag);
+
+  const countries = parseCountriesInfoEntries(fileText);
+  const textures = parseTextureEntries(fileText);
+  const textFormats = parseTextFormatEntries(fileText);
+
+  // Required field checks
+  if (!countryTag) {
+    errors.push("New country tag is required.");
+  }
+
+  if (!newCountryName || !newCountryName.trim()) {
+    errors.push("New country name is required.");
+  }
+
+  if (!unitToken || !unitToken.trim()) {
+    errors.push("Unit token is required.");
+  }
+
+  if (useCustomFlag && !customFlagFileName) {
+    errors.push("Custom flag is enabled, but no PNG file was selected.");
+  }
+
+  // Duplicate checks
+  if (countries.some((c) => c.tag === countryTag)) {
+    errors.push(`Country tag "${countryTag}" already exists.`);
+  }
+
+  if (countries.some((c) => c.nameToken === nameToken)) {
+    errors.push(`Name token "${nameToken}" already exists.`);
+  }
+
+  if (textFormats.some((t) => t.tag === countryTag)) {
+    errors.push(`CountriesTextFormatScriptMap already has an entry for "${countryTag}".`);
+  }
+
+  // Texture token only matters if creating a custom flag
+  if (useCustomFlag && textures.some((t) => t.textureToken === flagTextureToken)) {
+    errors.push(`Texture token "${flagTextureToken}" already exists.`);
+  }
+
+  // Warning examples
+  if (countryTag.length < 2 || countryTag.length > 4) {
+    warnings.push("Country tag is unusual length. Most tags are short, like BEL or SWE.");
+  }
+
+  if (useCustomFlag && customFlagFileName && !customFlagFileName.toLowerCase().endsWith(".png")) {
+    errors.push("Custom flag file must be a PNG.");
+  }
+
+  if (newCountryName && newCountryName.length > 40) {
+    warnings.push("Country name is quite long and may not display well in UI.");
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+    normalized: {
+      countryTag,
+      nameToken,
+      flagTextureToken,
+    },
+  };
+}
+
+
 export function buildFlagFileName(countryTag) {
   return `${countryTag}_FLAG.png`;
 }
