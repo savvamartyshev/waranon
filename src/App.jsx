@@ -16,14 +16,14 @@ export default function App() {
   const [customFlagFile, setCustomFlagFile] = useState(null);
   const [useCustomFlag, setUseCustomFlag] = useState(false);
 
-  async function handleExport() {
-    
-  if (useCustomFlag && !customFlagFile) {
-  alert("Please select a PNG file for the custom flag.");
-  return;
-}
-    if (!existingText) {
+async function handleExport() {
+  if (!existingText) {
     alert("File not loaded yet!");
+    return;
+  }
+
+  if (useCustomFlag && !customFlagFile) {
+    alert("Please select a PNG file first.");
     return;
   }
 
@@ -34,7 +34,8 @@ export default function App() {
       newCountryTag: newTag,
       newCountryName: newName,
       unitToken: "NAMES_ABCD",
-      useCustomFlag: false,
+      useCustomFlag,
+      customFlagFileName: customFlagFile ? customFlagFile.name : null,
       addTextFormatEntry: true,
     });
 
@@ -44,55 +45,53 @@ export default function App() {
     );
 
     const zip = new JSZip();
-
-    const modName = "sampleMod"; // keep simple for now
-
+    const modName = "sampleMod";
     const root = zip.folder(modName);
 
-    // 1. Updated UISpecificCountriesInfos.ndf
+    if (!root) {
+      throw new Error("Failed to create mod root folder.");
+    }
+
     root.file(
       "GameData/Generated/UserInterface/UISpecificCountriesInfos.ndf",
       updatedText
     );
 
-    // 2. UnitNames file
     root.file(
       `GameData/Generated/Gameplay/Gfx/UnitNames/UnitNames_${generated.countryTag}.NDF`,
       generated.unitNamesFile
     );
 
-    // 3. Localization CSV
     root.file(
       `GameData/Localisation/${modName}/INTERFACE_OUTGAME.csv`,
       generated.interfaceCsv
     );
 
-    // Generate zip
-    const blob = await zip.generateAsync({ type: "blob" });
+    console.log("useCustomFlag:", useCustomFlag);
+    console.log("customFlagFile:", customFlagFile);
+    console.log("generated.flagFileName:", generated.flagFileName);
 
+    if (useCustomFlag && customFlagFile) {
+      root.file(
+        `GameData/Assets/2D/Interface/Common/Flags/${generated.flagFileName}`,
+        customFlagFile
+      );
+      console.log("PNG added to zip at:", `GameData/Assets/2D/Interface/Common/Flags/${generated.flagFileName}`);
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = url;
     link.download = `${modName}_${generated.countryTag}.zip`;
     link.click();
-if (useCustomFlag && customFlagFile) {
-  root.file(
-    `Assets/2D/Interface/Common/Flags/${generated.flagFileName}`,
-    customFlagFile
-  );
-}
+
     URL.revokeObjectURL(url);
   } catch (error) {
     alert("Export failed: " + error.message);
+    console.error(error);
   }
-
-  if (useCustomFlag && customFlagFile) {
-  root.file(
-    `Assets/2D/Interface/Common/Flags/${generated.flagFileName}`,
-    customFlagFile
-  );
-}
 }
 
   useEffect(() => {

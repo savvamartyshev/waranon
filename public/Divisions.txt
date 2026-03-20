@@ -1,29 +1,5 @@
 // Ne pas éditer, ce fichier est généré par DivisionFileWriter
 
-export Descriptor_Deck_Division_ROK_16e_Mecanisee_multi is TDeckDivisionDescriptor
-(
-    DescriptorId = GUID:{664815f1-49b4-44c2-9b3c-7308a90fadb0}
-    CfgName = 'BEL_16e_Mecanisee_multi'
-    DivisionName = 'DWOEODMVCO'
-    InterfaceOrder = 32
-    DivisionCoalition = ECoalition/NATO
-    DivisionTags = ['DEFAULT', 'ROK', 'NATO', 'MECHANIZ']
-    DescriptionHintTitleToken = 'DWOEODMVCO'
-    MaxActivationPoints = 50
-    DivisionRule = Descriptor_Deck_Division_BEL_16e_Mecanisee_multi_Rule
-    CostMatrix = MatrixCostName_BEL_16e_Mecanisee_multi
-    EmblemTexture     = "Texture_Division_Emblem_BEL_16e_Meca"
-    TypeToken        = "MECHANIZ"
-    SummaryTextToken = "SUMBEL16PD"
-    HistoryTextToken = "HISBEL16PD"
-    CountryId = "ROK"
-    StandoutUnits =
-    [
-        $/GFX/Unit/Descriptor_Unit_Leopard_1A5_BEL,
-        $/GFX/Unit/Descriptor_Unit_F16A_CBU_BEL,
-        $/GFX/Unit/Descriptor_Unit_A109BA_TOW_twin_BEL,
-    ]
-)
 
 export Descriptor_Deck_Division_BEL_16e_Mecanisee_multi is TDeckDivisionDescriptor
 (
@@ -126,7 +102,7 @@ export Descriptor_Deck_Division_ESP_Division_Guzman_multi is TDeckDivisionDescri
     DescriptorId = GUID:{c2688f0f-09de-4d8d-9e34-afb14d517bca}
     CfgName = 'ESP_Division_Guzman_multi'
     DivisionName = 'MWCCWPKTOX'
-    InterfaceOrder = 1
+    InterfaceOrder = 37.0
     DivisionCoalition = ECoalition/NATO
     DivisionTags = ['DEFAULT', 'ESP', 'NATO', 'MECHANIZ']
     DescriptionHintTitleToken = 'MWCCWPKTOX'
@@ -337,7 +313,30 @@ export Descriptor_Deck_Division_NL_CLKA_multi is TDeckDivisionDescriptor
         $/GFX/Unit/Descriptor_Unit_YP_408_TOW_NL,
     ]
 )
-
+export Descriptor_Deck_Division_POL_20_Pancerna_multi is TDeckDivisionDescriptor
+(
+    DescriptorId = GUID:{a13936c6-b279-4430-b456-93d953339572}
+    CfgName = 'POL_20_Pancerna_multi'
+    DivisionName = 'EGPXSAYCXO'
+    InterfaceOrder = 28.0
+    DivisionCoalition = ECoalition/PACT
+    DivisionTags = ['DEFAULT', 'POL', 'PACT', 'ARMORED']
+    DescriptionHintTitleToken = 'EGPXSAYCXO'
+    MaxActivationPoints = 50
+    DivisionRule = Descriptor_Deck_Division_POL_20_Pancerna_multi_Rule
+    CostMatrix = MatrixCostName_POL_20_Pancerna_multi
+    EmblemTexture     = "Texture_Division_Emblem_POL_20_Pc"
+    TypeToken        = "ARMORED"
+    SummaryTextToken = "SUMPOL20PD"
+    HistoryTextToken = "HISPOL20PD"
+    CountryId = "POL"
+    StandoutUnits =
+    [
+        $/GFX/Unit/Descriptor_Unit_T72M1_Wilk_POL,
+        $/GFX/Unit/Descriptor_Unit_MiG_21bis_RKT2_POL,
+        $/GFX/Unit/Descriptor_Unit_BMP_2_POL,
+    ]
+)
 export Descriptor_Deck_Division_POL_4_Zmechanizowana_multi is TDeckDivisionDescriptor
 (
     DescriptorId = GUID:{2b303d19-27e5-4a2c-8e3e-e497328bbba8}
@@ -1320,6 +1319,30 @@ export Descriptor_Deck_Division_US_6th_Light_multi is TDeckDivisionDescriptor
         $/GFX/Unit/Descriptor_Unit_Navy_SEAL_US,
         $/GFX/Unit/Descriptor_Unit_EA6B_Prowler_US,
         $/GFX/Unit/Descriptor_Unit_M48A5_reco_NG_US,
+    ]
+)
+export Descriptor_Deck_Division_US_82nd_Airborne_multi is TDeckDivisionDescriptor
+(
+    DescriptorId = GUID:{27ac92b1-73ed-4c9c-80d3-9044aa08c38f}
+    CfgName = 'US_82nd_Airborne_multi'
+    DivisionName = 'TATZFZUVYM'
+    InterfaceOrder = 12.0
+    DivisionCoalition = ECoalition/NATO
+    DivisionTags = ['DEFAULT', 'US', 'NATO', 'AIRBORNE']
+    DescriptionHintTitleToken = 'TATZFZUVYM'
+    MaxActivationPoints = 50
+    DivisionRule = Descriptor_Deck_Division_US_82nd_Airborne_multi_Rule
+    CostMatrix = MatrixCostName_US_82nd_Airborne_multi
+    EmblemTexture     = "Texture_Division_Emblem_82nd_airborne"
+    TypeToken        = "AIRBORNE"
+    SummaryTextToken = "SUMUS82AB"
+    HistoryTextToken = "HISUS82AB"
+    CountryId = "US"
+    StandoutUnits =
+    [
+        $/GFX/Unit/Descriptor_Unit_Airborne_US,
+        $/GFX/Unit/Descriptor_Unit_AH64_Apache_US,
+        $/GFX/Unit/Descriptor_Unit_LAV_25_M1047_US_US,
     ]
 )
 export Descriptor_Deck_Division_US_8th_Inf_multi is TDeckDivisionDescriptor

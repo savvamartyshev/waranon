@@ -21,6 +21,7 @@ unnamed TDeckSerializerEntries
         (Descriptor_Deck_Division_SOV_39GMRD_solo, 21),
         (Descriptor_Deck_Division_SOV_57GMRD_solo, 22),
         (Descriptor_Deck_Division_SOV_35_AirAslt_Brig_multi, 23),
+        (Descriptor_Deck_Division_US_82nd_Airborne_multi, 24),
         (Descriptor_Deck_Division_FR_11e_Para_multi, 25),
         (Descriptor_Deck_Division_FR_5e_Blindee_multi, 26),
         (Descriptor_Deck_Division_RDA_KdA_Bezirk_Erfurt_multi, 27),
@@ -86,6 +87,7 @@ unnamed TDeckSerializerEntries
         (Descriptor_Deck_Division_FR_Division_du_Rhin_multi, 92),
         (Descriptor_Deck_Division_RDA_9_Panzer_multi, 93),
         (Descriptor_Deck_Division_UK_4th_Armoured_multi, 94),
+        (Descriptor_Deck_Division_POL_20_Pancerna_multi, 95),
         (Descriptor_Deck_Division_POL_4_Zmechanizowana_multi, 96),
         (Descriptor_Deck_Division_POL_Korpus_Desantowy_multi, 97),
         (Descriptor_Deck_Division_SOV_39_Gds_Rifle_challenge, 98),
@@ -376,7 +378,6 @@ unnamed TDeckSerializerEntries
         (Descriptor_Deck_Division_TCH_2_MSD_multi, 408),
         (Descriptor_Deck_Division_SOV_1_Gds_Rifle_multi, 420),
         (Descriptor_Deck_Division_US_1st_Cavalry_multi, 421),
-        (Descriptor_Deck_Division_ROK_16e_Mecanisee_multi, 422),
     ]
 
     UnitIds = MAP
@@ -2877,6 +2878,5 @@ unnamed TDeckSerializerEntries
         ($/GFX/Unit/Descriptor_Unit_Groupe_AT_UK, 4234),
         ($/GFX/Unit/Descriptor_Unit_MotRifles_RPG7VS_SOV, 4235),
         ($/GFX/Unit/Descriptor_Unit_Reserve_SVD_SOV, 4236),
-        ($/GFX/Unit/Descriptor_Unit_AIFV_B_CMD_ROK, 4237),
     ]
 )

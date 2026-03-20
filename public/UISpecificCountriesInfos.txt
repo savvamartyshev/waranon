@@ -21,14 +21,6 @@ unnamed TUISpecificCountriesInfos
                 Coalition = ECoalition/NATO
             )
         ),
-        ("ROK", TUISpecificCountryInfos
-            (
-                FlagTexture = "CommonTexture_MotherCountryFlag_ROK"
-                Country = "ROK"
-                NameToken = "CtrROK"
-                Coalition = ECoalition/PACT
-            )
-        ),
         ("DDR", TUISpecificCountryInfos
             (
                 FlagTexture = "CommonTexture_MotherCountryFlag_DDR"
@@ -133,7 +125,6 @@ unnamed TBUCKToolAdditionalTextureBank
         ("CommonTexture_MotherCountryFlag_UK",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/UK_FLAG.png"))]),
         ("CommonTexture_MotherCountryFlag_NL",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/NL_FLAG.png"))]),
         ("CommonTexture_MotherCountryFlag_POL",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/POL_FLAG.png"))]),
-        ("CommonTexture_MotherCountryFlag_ROK",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/Flag_of_North_Korea.png"))]),
         ("CommonTexture_MotherCountryFlag_DDR",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/DDR_FLAG.png"))]),
         ("CommonTexture_MotherCountryFlag_RFA",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/RFA_FLAG.png"))]),
         ("CommonTexture_MotherCountryFlag_SOV",  MAP [(~/ComponentState/Normal, TUIResourceTexture_Common(FileName = "GameData:/Assets/2D/Interface/Common/Flags/SOV_FLAG.png"))]),
@@ -174,10 +165,6 @@ CountriesTextFormatScriptMap is MAP
     (
         "POL",
         TemplateTFS_Flag(TextureToken = "CommonTexture_MotherCountryFlag_POL")
-    ),
-    (
-        "ROK",
-        TemplateTFS_Flag(TextureToken = "CommonTexture_MotherCountryFlag_ROK")
     ),
     (
         "DDR",
