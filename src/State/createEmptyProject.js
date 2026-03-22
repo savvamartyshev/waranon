@@ -70,8 +70,9 @@ const createEmptyProject = () => ({
   customAmmo: [],
 
   files: {
-    uiSpecificCountriesText: "",
-    divisionsText: "",
+    uiSpecificCountriesText,
+    divisionsText,
+    localizationText,
     deckSerializerText: "",
   },
 

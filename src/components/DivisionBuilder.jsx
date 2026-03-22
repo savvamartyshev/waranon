@@ -1,12 +1,9 @@
 import { useMemo } from "react";
 import CountryBuilder from "./CountryBuilder";
 import { exportMod } from "../logic/exportMod";
-import JSZip from "jszip";
-import {
-  parseCountriesInfoEntries,
-  applyNewCountryToUiSpecificCountriesFile,
-} from "../generators/country";
+import { parseCountriesInfoEntries } from "../generators/country";
 import { parseDivisionEntries } from "../generators/divisions";
+import { buildLocalizationMap } from "../generators/localization";
 
 const categories = ["log", "inf", "art", "tnk", "rec", "aa", "hel", "air"];
 
@@ -17,6 +14,15 @@ export default function DivisionBuilder({
   setShowCountryEditor,
 }) {
   const division = project.division;
+
+  const localizationMap = useMemo(() => {
+    try {
+      return buildLocalizationMap(project.files.localizationText);
+    } catch (error) {
+      console.error("Failed to parse localization:", error);
+      return {};
+    }
+  }, [project.files.localizationText]);
 
   const parsedCountries = useMemo(() => {
     const text = project.files.uiSpecificCountriesText;
@@ -59,6 +65,15 @@ export default function DivisionBuilder({
         [field]: value,
       },
     }));
+  }
+
+  function getDivisionFriendlyName(entry) {
+    return (
+      localizationMap[entry.divisionNameToken] ||
+      entry.cfgName ||
+      entry.exportName ||
+      "Unknown Division"
+    );
   }
 
   function handleCountryChange(value) {
@@ -155,9 +170,9 @@ export default function DivisionBuilder({
                   : "Select country first"}
               </option>
 
-              {filteredDivisions.map((baseDivision) => (
-                <option key={baseDivision.id} value={baseDivision.id}>
-                  {baseDivision.name}
+              {filteredDivisions.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {getDivisionFriendlyLabel(entry)}
                 </option>
               ))}
             </select>

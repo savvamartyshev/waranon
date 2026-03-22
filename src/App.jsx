@@ -2,6 +2,7 @@ import { useState } from "react";
 import DivisionBuilder from "./components/DivisionBuilder";
 import uiSpecificCountriesText from "./templates/UISpecificCountriesInfos.txt?raw";
 import divisionsText from "./templates/Divisions.txt?raw";
+import localizationText from "./templates/localizationexample.txt?raw";
 
 function createEmptyProject() {
   return {
@@ -50,6 +51,7 @@ function createEmptyProject() {
     files: {
       uiSpecificCountriesText,
       divisionsText,
+      localizationText,
       deckSerializerText: "",
     },
     validation: {

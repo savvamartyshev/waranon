@@ -42,39 +42,37 @@ export function parseDivisionEntries(text) {
 
   const entries = [];
 
-  /**
-   * This regex is a starter assumption.
-   * You may need to tweak it to match the real structure
-   * of your divisions.txt file.
-   *
-   * It assumes repeated division blocks somewhat like:
-   * TDeckDivisionDescriptor SOME_ID { ... }
-   */
-  const blockRegex = /TDeckDivisionDescriptor\s+([A-Za-z0-9_]+)\s*\{([\s\S]*?)\}/g;
+  const blockRegex =
+    /export\s+([A-Za-z0-9_]+)\s+is\s+TDeckDivisionDescriptor\s*\(([\s\S]*?)\n\)/g;
 
   let match;
   while ((match = blockRegex.exec(text)) !== null) {
-    const rawId = match[1];
+    const exportName = match[1];
     const block = match[2];
 
-    // Try a few likely field names for division display name
-    const nameMatch =
-      block.match(/DisplayName\s*=\s*"([^"]+)"/) ||
-      block.match(/DivisionName\s*=\s*"([^"]+)"/) ||
-      block.match(/Name\s*=\s*"([^"]+)"/);
-
-    // Try a few likely field names for country reference
-    const countryMatch =
-      block.match(/Country\s*=\s*([A-Za-z0-9_]+)/) ||
-      block.match(/CountryId\s*=\s*([A-Za-z0-9_]+)/) ||
-      block.match(/Nationality\s*=\s*([A-Za-z0-9_]+)/) ||
-      block.match(/MotherCountry\s*=\s*([A-Za-z0-9_]+)/);
+    const cfgNameMatch = block.match(/CfgName\s*=\s*'([^']+)'/);
+    const divisionNameMatch = block.match(/DivisionName\s*=\s*'([^']+)'/);
+    const coalitionMatch = block.match(/DivisionCoalition\s*=\s*ECoalition\/([A-Z]+)/);
+    const countryMatch = block.match(/CountryId\s*=\s*"([^"]+)"/);
+    const typeTokenMatch = block.match(/TypeToken\s*=\s*"([^"]+)"/);
+    const summaryTextTokenMatch = block.match(/SummaryTextToken\s*=\s*"([^"]+)"/);
+    const historyTextTokenMatch = block.match(/HistoryTextToken\s*=\s*"([^"]+)"/);
+    const interfaceOrderMatch = block.match(/InterfaceOrder\s*=\s*([0-9.]+)/);
 
     entries.push({
-      id: rawId,
-      name: nameMatch?.[1] || rawId,
+      id: exportName,
+      exportName,
+      cfgName: cfgNameMatch?.[1] || "",
+      divisionNameToken: divisionNameMatch?.[1] || "",
+      coalition: coalitionMatch?.[1] || "",
       countryId: countryMatch?.[1] || "",
-      rawBlock: block, // helpful later if you want to build from selected base division
+      typeToken: typeTokenMatch?.[1] || "",
+      summaryTextToken: summaryTextTokenMatch?.[1] || "",
+      historyTextToken: historyTextTokenMatch?.[1] || "",
+      interfaceOrder: interfaceOrderMatch
+        ? Number(interfaceOrderMatch[1])
+        : null,
+      rawBlock: block,
     });
   }
 
