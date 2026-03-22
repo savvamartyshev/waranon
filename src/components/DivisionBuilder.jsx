@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import CountryBuilder from "./CountryBuilder";
+import { exportMod } from "../logic/exportMod";
 import JSZip from "jszip";
 import {
   parseCountriesInfoEntries,
@@ -47,88 +48,22 @@ export default function DivisionBuilder({
     updateDivisionField("countryId", value);
   }
 
-  async function handleExportDivision() {
-    try {
-      const zip = new JSZip();
-      const modName = project.meta.modName || "sampleMod";
-      const root = zip.folder(modName);
+  async function handleExport() {
+  try {
+    const blob = await exportMod(project);
 
-      if (!root) {
-        throw new Error("Failed to create mod root folder.");
-      }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
-      // Start from the base template text
-      let uiSpecificCountriesText = project.files.uiSpecificCountriesText;
+    link.href = url;
+    link.download = `${project.meta?.modName || "mod"}.zip`;
+    link.click();
 
-      // Combine all custom country changes into one final UISpecificCountriesInfos file
-      for (const customCountry of project.customCountries) {
-        uiSpecificCountriesText = applyNewCountryToUiSpecificCountriesFile(
-          uiSpecificCountriesText,
-          customCountry.generated,
-        );
-      }
-
-      // 1. Export merged UISpecificCountriesInfos.ndf
-      root.file(
-        "GameData/Generated/UserInterface/UISpecificCountriesInfos.ndf",
-        uiSpecificCountriesText,
-      );
-
-      // 2. Export UnitNames files for each custom country
-      for (const customCountry of project.customCountries) {
-        root.file(
-          `GameData/Generated/Gameplay/Gfx/UnitNames/UnitNames_${customCountry.countryTag}.NDF`,
-          customCountry.generated.unitNamesFile,
-        );
-      }
-
-      // 3. Export one INTERFACE_OUTGAME.csv containing all custom country rows
-      let interfaceCsv = `"TOKEN";"REFTEXT"\n`;
-
-      for (const customCountry of project.customCountries) {
-        interfaceCsv += `"${customCountry.nameToken}";"${customCountry.countryName}"\n`;
-      }
-
-      root.file(
-        `GameData/Localisation/${modName}/INTERFACE_OUTGAME.csv`,
-        interfaceCsv,
-      );
-
-      // 4. Export custom flag PNGs
-      for (const customCountry of project.customCountries) {
-        if (customCountry.useCustomFlag && customCountry.flagFile) {
-          root.file(
-            `GameData/Assets/2D/Interface/Common/Flags/${customCountry.generated.flagFileName}`,
-            customCountry.flagFile,
-          );
-        }
-      }
-
-      // 5. Optional README for debugging / proof of concept
-      root.file(
-        "README.txt",
-        [
-          "WARNO Division Builder Export",
-          `Mod Name: ${modName}`,
-          `Custom Countries: ${project.customCountries.length}`,
-          `Selected Division Country: ${project.division.countryId || "(none)"}`,
-        ].join("\n"),
-      );
-
-      const blob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.download = `${modName}_division_export.zip`;
-      link.click();
-
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      alert(`Export failed: ${error.message}`);
-      console.error(error);
-    }
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(err.message);
   }
+}
 
   return (
     <div style={styles.page}>
@@ -203,7 +138,7 @@ export default function DivisionBuilder({
             <button
               type="button"
               style={styles.exportButton}
-              onClick={handleExportDivision}
+              onClick={handleExport}
             >
               Export Division
             </button>
