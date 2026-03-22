@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid' // or use crypto.randomUUID()
-
 export function createDivisionFromBase(baseDivision, overrides, existingDivisions) {
   const newDivision = structuredClone(baseDivision)
 
