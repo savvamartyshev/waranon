@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parseDivisionEntries } from "../generators/divisions";
 import { buildLocalizationMap } from "../generators/localization";
 
+//allows for the building of custom divisions
 export default function CustomDivisionBuilder({
   divisionsText,
   localizationText,
