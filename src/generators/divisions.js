@@ -94,12 +94,43 @@ function makeUnique(base, existingList) {
   return name
 }
 
+//slug identifier builder
+
+function sanitizeDivisionName(value) {
+  return value
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
+//name builder
+export function buildDivisionExportName({ countryId, cfgName }) {
+  return `Descriptor_Deck_Division_${cfgName}`;
+}
+
+export function getNextInterfaceOrder(divisions) {
+  return Math.max(0, ...divisions.map((d) => d.interfaceOrder || 0)) + 1;
+}
+
 //token length enforcer
 function enforceTokenLength(value, length) {
   if (!value || value.length !== length) {
     throw new Error(`Token must be exactly ${length} characters`)
   }
   return value
+}
+
+//token generator
+
+export function generateTenCharToken(prefix = "") {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = prefix;
+
+  while (result.length < 10) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  return result.slice(0, 10);
 }
 
 //rule+matrixnaming
@@ -109,4 +140,18 @@ function generateRuleName(cfgName) {
 
 function generateCostMatrixName(cfgName) {
   return `MatrixCostName_${cfgName}`
+}
+
+//enforce unique token
+function makeUniqueToken(baseToken, usedTokens) {
+  let token = baseToken;
+  let i = 0;
+
+  while (usedTokens.includes(token)) {
+    const suffix = String(i).padStart(2, "0");
+    token = `${baseToken.slice(0, 8)}${suffix}`.slice(0, 10);
+    i += 1;
+  }
+
+  return token;
 }

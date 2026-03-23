@@ -277,6 +277,8 @@ export default function DivisionBuilder({
               <CustomDivisionBuilder
                 divisionsText={project.files.divisionsText}
                 localizationText={project.files.localizationText}
+                uiSpecificCountriesText={project.files.uiSpecificCountriesText}
+                customDivisions={project.customDivisions || []}
                 onCancel={() => setShowDivisionEditor(false)}
                 onSave={(customDivision) => {
                   setProject((prev) => ({
@@ -289,6 +291,7 @@ export default function DivisionBuilder({
                       ...prev.division,
                       countryId: customDivision.countryId,
                       divisionId: customDivision.id,
+                      deckBudget: customDivision.deckBudget,
                     },
                   }));
 
@@ -419,10 +422,14 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    padding: "24px",
+    zIndex: 1000,
   },
   modalCard: {
-    width: "600px",
-    maxWidth: "90vw",
+    width: "720px",
+    maxWidth: "95vw",
+    maxHeight: "85vh",
+    overflowY: "auto",
     background: "#111",
     border: "1px solid #666",
     borderRadius: "14px",
