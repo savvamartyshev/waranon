@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import CountryBuilder from "./CountryBuilder";
+import CustomDivisionBuilder from "./CustomDivisionBuilder";
 import { exportMod } from "../logic/exportMod";
 import { parseCountriesInfoEntries } from "../generators/country";
 import { parseDivisionEntries } from "../generators/divisions";
 import { buildLocalizationMap } from "../generators/localization";
-import CustomDivisionBuilder from "./CustomDivisionBuilder";
 import { parseDivisionRuleEntries } from "../generators/divisionRules";
 import { parseUnitEntries, buildUnitsByCategory } from "../generators/units";
 
@@ -19,14 +19,6 @@ export default function DivisionBuilder({
   setShowDivisionEditor,
 }) {
   const division = project.division;
-
-  const filteredCustomDivisions = useMemo(() => {
-    if (!division.countryId) return [];
-
-    return (project.customDivisions || []).filter(
-      (entry) => entry.countryId === division.countryId,
-    );
-  }, [project.customDivisions, division.countryId]);
 
   const localizationMap = useMemo(() => {
     try {
@@ -48,6 +40,34 @@ export default function DivisionBuilder({
       return [];
     }
   }, [project.files.uiSpecificCountriesText]);
+
+  const parsedDivisions = useMemo(() => {
+    const text = project.files.divisionsText;
+    if (!text) return [];
+
+    try {
+      return parseDivisionEntries(text);
+    } catch (error) {
+      console.error("Failed to parse divisions:", error);
+      return [];
+    }
+  }, [project.files.divisionsText]);
+
+  const filteredDivisions = useMemo(() => {
+    if (!division.countryId) return [];
+
+    return parsedDivisions.filter(
+      (entry) => entry.countryId === division.countryId,
+    );
+  }, [parsedDivisions, division.countryId]);
+
+  const filteredCustomDivisions = useMemo(() => {
+    if (!division.countryId) return [];
+
+    return (project.customDivisions || []).filter(
+      (entry) => entry.countryId === division.countryId,
+    );
+  }, [project.customDivisions, division.countryId]);
 
   const parsedDivisionRules = useMemo(() => {
     const text = project.files.divisionRulesText;
@@ -72,20 +92,6 @@ export default function DivisionBuilder({
       return [];
     }
   }, [project.files.unitsText]);
-
-  //parse divisions and filter divisions
-  const parsedDivisions = useMemo(() => {
-    const text = project.files.divisionsText;
-    if (!text) return [];
-
-    try {
-      return parseDivisionEntries(text);
-    } catch (error) {
-      console.error("Failed to parse divisions:", error);
-      return [];
-    }
-  }, [project.files.divisionsText]);
-
 
   const selectedDivisionEntry = useMemo(() => {
     const baseDivision =
@@ -112,14 +118,6 @@ export default function DivisionBuilder({
     parsedUnits,
     localizationMap,
   ]);
-
-  const filteredDivisions = useMemo(() => {
-    if (!division.countryId) return [];
-
-    return parsedDivisions.filter(
-      (entry) => entry.countryId === division.countryId,
-    );
-  }, [parsedDivisions, division.countryId]);
 
   function updateDivisionField(field, value) {
     setProject((prev) => ({
@@ -215,7 +213,7 @@ export default function DivisionBuilder({
                 </option>
               ))}
 
-              {project.customCountries.map((country) => (
+              {(project.customCountries || []).map((country) => (
                 <option key={country.countryTag} value={country.countryTag}>
                   {country.countryTag} (custom)
                 </option>
@@ -287,10 +285,12 @@ export default function DivisionBuilder({
             <div key={category} style={styles.column}>
               <div style={styles.columnHeader}>{category.toUpperCase()}</div>
 
-              {(derivedUnitsByCategory[category] || []).map((unit, index) => (
-                <div key={index} style={styles.unitCard}>
-                  <div style={styles.unitIcon}>icon</div>
-                  <div style={styles.unitName}>{unit.name || "unit name"}</div>
+              {(derivedUnitsByCategory[category] || []).map((unit) => (
+                <div key={unit.id} style={styles.unitCard}>
+                  <div style={styles.unitIcon}>{unit.unitRole || "icon"}</div>
+                  <div style={styles.unitName}>
+                    {unit.name || unit.id || "unit name"}
+                  </div>
                 </div>
               ))}
 
@@ -310,7 +310,7 @@ export default function DivisionBuilder({
                 onSave={(customCountry) => {
                   setProject((prev) => ({
                     ...prev,
-                    customCountries: [...prev.customCountries, customCountry],
+                    customCountries: [...(prev.customCountries || []), customCountry],
                     division: {
                       ...prev.division,
                       countryId: customCountry.countryTag,
