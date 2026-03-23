@@ -35,6 +35,7 @@ function createEmptyProject() {
       emblemPreviewUrl: "",
     },
     customCountries: [],
+    customDivisions: [],
     unitsByCategory: {
       log: [],
       inf: [],
@@ -64,6 +65,7 @@ function createEmptyProject() {
 export default function App() {
   const [project, setProject] = useState(createEmptyProject());
   const [showCountryEditor, setShowCountryEditor] = useState(false);
+  const [showDivisionEditor, setShowDivisionEditor] = useState(false);
 
   return (
     <DivisionBuilder
@@ -71,6 +73,8 @@ export default function App() {
       setProject={setProject}
       showCountryEditor={showCountryEditor}
       setShowCountryEditor={setShowCountryEditor}
+      showDivisionEditor={showDivisionEditor}
+      setShowDivisionEditor={setShowDivisionEditor}
     />
   );
 }
