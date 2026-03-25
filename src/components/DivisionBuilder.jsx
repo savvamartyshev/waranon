@@ -1,14 +1,32 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import CountryBuilder from "./CountryBuilder";
 import CustomDivisionBuilder from "./CustomDivisionBuilder";
 import { exportMod } from "../logic/exportMod";
 import { parseCountriesInfoEntries } from "../generators/country";
 import { parseDivisionEntries } from "../generators/divisions";
 import { buildLocalizationMap } from "../generators/localization";
-import { parseDivisionRuleEntries } from "../generators/divisionRules";
+import {
+  parseDivisionRuleEntries,
+  findDivisionRuleById,
+  serializeDivisionRule,
+  diffDivisionRules,
+} from "../generators/divisionRules";
 import { parseUnitEntries, buildUnitsByCategory } from "../generators/units";
 
 const categories = ["log", "inf", "art", "tnk", "rec", "aa", "hel", "air"];
+
+function createEmptyCategories() {
+  return {
+    log: [],
+    inf: [],
+    art: [],
+    tnk: [],
+    rec: [],
+    aa: [],
+    hel: [],
+    air: [],
+  };
+}
 
 export default function DivisionBuilder({
   project,
@@ -17,8 +35,14 @@ export default function DivisionBuilder({
   setShowCountryEditor,
   showDivisionEditor,
   setShowDivisionEditor,
+  divisionRules = [],
+  onClearDivisionRule,
+  onAddUnitToDivisionRule,
+  onRemoveUnitFromDivisionRule,
+  onCreateDivisionRuleFromBase,
 }) {
   const division = project.division;
+  const [addMenuCategory, setAddMenuCategory] = useState(null);
 
   const localizationMap = useMemo(() => {
     try {
@@ -53,22 +77,6 @@ export default function DivisionBuilder({
     }
   }, [project.files.divisionsText]);
 
-  const filteredDivisions = useMemo(() => {
-    if (!division.countryId) return [];
-
-    return parsedDivisions.filter(
-      (entry) => entry.countryId === division.countryId,
-    );
-  }, [parsedDivisions, division.countryId]);
-
-  const filteredCustomDivisions = useMemo(() => {
-    if (!division.countryId) return [];
-
-    return (project.customDivisions || []).filter(
-      (entry) => entry.countryId === division.countryId,
-    );
-  }, [project.customDivisions, division.countryId]);
-
   const parsedDivisionRules = useMemo(() => {
     const text = project.files.divisionRulesText;
     if (!text) return [];
@@ -93,31 +101,110 @@ export default function DivisionBuilder({
     }
   }, [project.files.unitsText]);
 
-  const selectedDivisionEntry = useMemo(() => {
+  const filteredDivisions = useMemo(() => {
+    if (!division.countryId) return [];
+
+    return parsedDivisions.filter((entry) => entry.countryId === division.countryId);
+  }, [parsedDivisions, division.countryId]);
+
+  const filteredCustomDivisions = useMemo(() => {
+    if (!division.countryId) return [];
+
+    return (project.customDivisions || []).filter(
+      (entry) => entry.countryId === division.countryId
+    );
+  }, [project.customDivisions, division.countryId]);
+
+  const allDivisionRules = useMemo(() => {
+    if (divisionRules.length) return divisionRules;
+    return [];
+  }, [divisionRules]);
+
+  const selectedBaseDivisionEntry = useMemo(() => {
     const baseDivision =
-      parsedDivisions.find((entry) => entry.id === division.divisionId) || null;
+      parsedDivisions.find((entry) => entry.id === division.baseDivision) || null;
 
     const customDivision =
       (project.customDivisions || []).find(
-        (entry) => entry.id === division.divisionId,
+        (entry) => entry.id === division.baseDivision
       ) || null;
 
     return customDivision || baseDivision;
-  }, [parsedDivisions, project.customDivisions, division.divisionId]);
+  }, [parsedDivisions, project.customDivisions, division.baseDivision]);
+
+  const activeRuleEntry = useMemo(() => {
+    return findDivisionRuleById(allDivisionRules, division.divisionRule);
+  }, [allDivisionRules, division.divisionRule]);
+
+  const baseRuleEntry = useMemo(() => {
+    const baseRuleId = selectedBaseDivisionEntry?.divisionRule || "";
+    return findDivisionRuleById(parsedDivisionRules, baseRuleId);
+  }, [parsedDivisionRules, selectedBaseDivisionEntry]);
 
   const derivedUnitsByCategory = useMemo(() => {
+    if (!activeRuleEntry) return createEmptyCategories();
+
     return buildUnitsByCategory({
-      selectedDivision: selectedDivisionEntry,
-      divisionRules: parsedDivisionRules,
+      selectedDivision: {
+        divisionRule: activeRuleEntry.id,
+      },
+      divisionRules: allDivisionRules,
       units: parsedUnits,
       localizationMap,
     });
-  }, [
-    selectedDivisionEntry,
-    parsedDivisionRules,
-    parsedUnits,
-    localizationMap,
-  ]);
+  }, [activeRuleEntry, allDivisionRules, parsedUnits, localizationMap]);
+
+  const allUnitsByCategory = useMemo(() => {
+    const categoryBuckets = createEmptyCategories();
+
+    for (const unit of parsedUnits) {
+      const built = buildUnitsByCategory({
+        selectedDivision: {
+          divisionRule: "__temp__",
+        },
+        divisionRules: [{ id: "__temp__", unitIds: [unit.id] }],
+        units: parsedUnits,
+        localizationMap,
+      });
+
+      for (const category of categories) {
+        if (built[category]?.length) {
+          categoryBuckets[category].push({
+            id: unit.id,
+            name:
+              localizationMap[unit.nameToken] ||
+              unit.className ||
+              unit.id,
+            unitRole: unit.unitRole,
+            factoryType: unit.factoryType,
+          });
+        }
+      }
+    }
+
+    return categoryBuckets;
+  }, [parsedUnits, localizationMap]);
+
+  const availableUnitsToAddByCategory = useMemo(() => {
+    const currentIds = new Set(activeRuleEntry?.unitIds || []);
+    const result = createEmptyCategories();
+
+    for (const category of categories) {
+      result[category] = (allUnitsByCategory[category] || []).filter(
+        (unit) => !currentIds.has(unit.id)
+      );
+    }
+
+    return result;
+  }, [allUnitsByCategory, activeRuleEntry]);
+
+  const currentRulePreview = useMemo(() => {
+    return serializeDivisionRule(activeRuleEntry);
+  }, [activeRuleEntry]);
+
+  const ruleDiff = useMemo(() => {
+    return diffDivisionRules(baseRuleEntry, activeRuleEntry);
+  }, [baseRuleEntry, activeRuleEntry]);
 
   function updateDivisionField(field, value) {
     setProject((prev) => ({
@@ -129,20 +216,12 @@ export default function DivisionBuilder({
     }));
   }
 
-  function handleDivisionChange(value) {
-    if (value === "__ADD_CUSTOM_DIVISION__") {
-      setShowDivisionEditor(true);
-      return;
-    }
-
-    updateDivisionField("divisionId", value);
-  }
-
   function getDivisionFriendlyName(entry) {
     return (
       localizationMap[entry.divisionNameToken] ||
       entry.cfgName ||
       entry.exportName ||
+      entry.id ||
       "Unknown Division"
     );
   }
@@ -158,7 +237,42 @@ export default function DivisionBuilder({
       division: {
         ...prev.division,
         countryId: value,
-        divisionId: "",
+        baseDivision: "",
+        divisionRule: "",
+      },
+    }));
+  }
+
+  function handleBaseDivisionChange(value) {
+    if (value === "__ADD_CUSTOM_DIVISION__") {
+      setShowDivisionEditor(true);
+      return;
+    }
+
+    if (!value) {
+      setProject((prev) => ({
+        ...prev,
+        division: {
+          ...prev.division,
+          baseDivision: "",
+          divisionRule: "",
+        },
+      }));
+      return;
+    }
+
+    const selectedDivisionEntry =
+      parsedDivisions.find((entry) => entry.id === value) ||
+      (project.customDivisions || []).find((entry) => entry.id === value);
+
+    const baseRuleId = selectedDivisionEntry?.divisionRule || "";
+
+    setProject((prev) => ({
+      ...prev,
+      division: {
+        ...prev.division,
+        baseDivision: value,
+        divisionRule: baseRuleId,
       },
     }));
   }
@@ -166,7 +280,6 @@ export default function DivisionBuilder({
   async function handleExport() {
     try {
       const blob = await exportMod(project);
-
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
 
@@ -183,7 +296,7 @@ export default function DivisionBuilder({
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        <h1 style={styles.title}>Division Builder</h1>
+        <h1 style={styles.title}>Division Rules Builder</h1>
 
         <div style={styles.topBar}>
           <div style={styles.fieldBox}>
@@ -228,15 +341,13 @@ export default function DivisionBuilder({
           <div style={styles.fieldBox}>
             <label style={styles.label}>Base Division</label>
             <select
-              value={division.divisionId || ""}
-              onChange={(e) => handleDivisionChange(e.target.value)}
+              value={division.baseDivision || ""}
+              onChange={(e) => handleBaseDivisionChange(e.target.value)}
               style={styles.select}
               disabled={!division.countryId}
             >
               <option value="">
-                {division.countryId
-                  ? "Select division"
-                  : "Select country first"}
+                {division.countryId ? "Select division" : "Select country first"}
               </option>
 
               {filteredDivisions.map((entry) => (
@@ -247,7 +358,7 @@ export default function DivisionBuilder({
 
               {filteredCustomDivisions.map((entry) => (
                 <option key={entry.id} value={entry.id}>
-                  {entry.cfgName} (custom)
+                  {entry.cfgName || entry.id} (custom)
                 </option>
               ))}
 
@@ -258,26 +369,46 @@ export default function DivisionBuilder({
           </div>
 
           <div style={styles.fieldBox}>
-            <label style={styles.label}>Deck Budget</label>
+            <label style={styles.label}>Active Rule</label>
             <input
-              type="number"
-              value={division.deckBudget}
-              onChange={(e) =>
-                updateDivisionField("deckBudget", Number(e.target.value))
-              }
+              type="text"
+              value={division.divisionRule || ""}
+              readOnly
               style={styles.input}
             />
           </div>
 
           <div style={styles.exportBox}>
-            <button
-              type="button"
-              style={styles.exportButton}
-              onClick={handleExport}
-            >
-              Export Division
+            <button type="button" style={styles.exportButton} onClick={handleExport}>
+              Export Mod
             </button>
           </div>
+        </div>
+
+        <div style={styles.actionBar}>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={onClearDivisionRule}
+            disabled={!division.divisionRule}
+          >
+            Clear Division
+          </button>
+
+          {selectedBaseDivisionEntry?.divisionRule && (
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={() =>
+                onCreateDivisionRuleFromBase?.({
+                  newRuleId: division.divisionRule || selectedBaseDivisionEntry.divisionRule,
+                  baseRuleId: selectedBaseDivisionEntry.divisionRule,
+                })
+              }
+            >
+              Reload From Base Division
+            </button>
+          )}
         </div>
 
         <div style={styles.grid}>
@@ -287,18 +418,94 @@ export default function DivisionBuilder({
 
               {(derivedUnitsByCategory[category] || []).map((unit) => (
                 <div key={unit.id} style={styles.unitCard}>
-                  <div style={styles.unitIcon}>{unit.unitRole || "icon"}</div>
-                  <div style={styles.unitName}>
-                    {unit.name || unit.id || "unit name"}
+                  <div style={styles.unitIcon}>
+                    {unit.factoryType || unit.unitRole || "unit"}
+                  </div>
+
+                  <div style={styles.unitNameWrap}>
+                    <div style={styles.unitName}>
+                      {unit.name || unit.id || "unit name"}
+                    </div>
+
+                    <button
+                      type="button"
+                      style={styles.removeButton}
+                      onClick={() => onRemoveUnitFromDivisionRule?.(unit.id)}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
               ))}
 
-              <button type="button" style={styles.addButton}>
+              {addMenuCategory === category && (
+                <div style={styles.addMenu}>
+                  {(availableUnitsToAddByCategory[category] || []).slice(0, 12).map((unit) => (
+                    <button
+                      key={unit.id}
+                      type="button"
+                      style={styles.addMenuItem}
+                      onClick={() => {
+                        onAddUnitToDivisionRule?.(unit.id);
+                        setAddMenuCategory(null);
+                      }}
+                    >
+                      {unit.name}
+                    </button>
+                  ))}
+
+                  {!(availableUnitsToAddByCategory[category] || []).length && (
+                    <div style={styles.emptyAddMenu}>No units available</div>
+                  )}
+                </div>
+              )}
+
+              <button
+                type="button"
+                style={styles.addButton}
+                onClick={() =>
+                  setAddMenuCategory((current) =>
+                    current === category ? null : category
+                  )
+                }
+                disabled={!division.divisionRule}
+              >
                 +
               </button>
             </div>
           ))}
+        </div>
+
+        <div style={styles.previewSection}>
+          <div style={styles.previewHeader}>Current Rule Preview</div>
+
+          <div style={styles.diffRow}>
+            <div style={styles.diffBox}>
+              <div style={styles.diffTitle}>Added</div>
+              {ruleDiff.added.length ? (
+                ruleDiff.added.map((id) => (
+                  <div key={id} style={styles.diffItem}>+ {id}</div>
+                ))
+              ) : (
+                <div style={styles.diffEmpty}>No added units</div>
+              )}
+            </div>
+
+            <div style={styles.diffBox}>
+              <div style={styles.diffTitle}>Removed</div>
+              {ruleDiff.removed.length ? (
+                ruleDiff.removed.map((id) => (
+                  <div key={id} style={styles.diffItem}>- {id}</div>
+                ))
+              ) : (
+                <div style={styles.diffEmpty}>No removed units</div>
+              )}
+            </div>
+          </div>
+
+          <pre style={styles.previewCode}>
+            {currentRulePreview || "// No active division rule selected"}
+          </pre>
         </div>
 
         {showCountryEditor && (
@@ -344,7 +551,8 @@ export default function DivisionBuilder({
                     division: {
                       ...prev.division,
                       countryId: customDivision.countryId,
-                      divisionId: customDivision.id,
+                      baseDivision: customDivision.id,
+                      divisionRule: customDivision.divisionRule || "",
                       deckBudget: customDivision.deckBudget,
                     },
                   }));
@@ -380,8 +588,13 @@ const styles = {
     display: "grid",
     gridTemplateColumns: "repeat(5, minmax(160px, 1fr))",
     gap: "16px",
-    marginBottom: "28px",
+    marginBottom: "20px",
     alignItems: "end",
+  },
+  actionBar: {
+    display: "flex",
+    gap: "12px",
+    marginBottom: "20px",
   },
   fieldBox: {
     display: "flex",
@@ -420,17 +633,27 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
+  secondaryButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #888",
+    background: "#111",
+    color: "#fff",
+    cursor: "pointer",
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(8, minmax(120px, 1fr))",
     gap: "0",
     border: "1px solid #888",
+    marginBottom: "24px",
   },
   column: {
     borderRight: "1px solid #888",
     minHeight: "260px",
     display: "flex",
     flexDirection: "column",
+    position: "relative",
   },
   columnHeader: {
     borderBottom: "1px solid #888",
@@ -440,7 +663,7 @@ const styles = {
   },
   unitCard: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "56px 1fr",
     borderBottom: "1px solid #666",
     minHeight: "58px",
   },
@@ -449,15 +672,29 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    fontSize: "12px",
+    fontSize: "11px",
+    padding: "4px",
+    textAlign: "center",
+  },
+  unitNameWrap: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    padding: "6px",
+    gap: "6px",
   },
   unitName: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
     fontSize: "12px",
     textAlign: "center",
-    padding: "4px",
+  },
+  removeButton: {
+    border: "1px solid #666",
+    background: "#1a1a1a",
+    color: "#fff",
+    fontSize: "11px",
+    cursor: "pointer",
+    padding: "4px 6px",
+    borderRadius: "6px",
   },
   addButton: {
     marginTop: "auto",
@@ -468,6 +705,74 @@ const styles = {
     fontSize: "20px",
     cursor: "pointer",
     padding: "8px",
+  },
+  addMenu: {
+    borderTop: "1px solid #666",
+    background: "#161616",
+    maxHeight: "220px",
+    overflowY: "auto",
+  },
+  addMenuItem: {
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    color: "#fff",
+    border: "none",
+    borderBottom: "1px solid #333",
+    padding: "8px",
+    cursor: "pointer",
+    fontSize: "12px",
+  },
+  emptyAddMenu: {
+    padding: "10px",
+    fontSize: "12px",
+    color: "#aaa",
+  },
+  previewSection: {
+    border: "1px solid #666",
+    borderRadius: "12px",
+    background: "#101010",
+    overflow: "hidden",
+  },
+  previewHeader: {
+    padding: "12px 16px",
+    borderBottom: "1px solid #666",
+    fontWeight: "bold",
+  },
+  diffRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "0",
+    borderBottom: "1px solid #666",
+  },
+  diffBox: {
+    padding: "12px 16px",
+    borderRight: "1px solid #666",
+  },
+  diffTitle: {
+    fontWeight: "bold",
+    marginBottom: "8px",
+  },
+  diffItem: {
+    fontSize: "12px",
+    marginBottom: "4px",
+    fontFamily: "monospace",
+  },
+  diffEmpty: {
+    fontSize: "12px",
+    color: "#aaa",
+  },
+  previewCode: {
+    margin: 0,
+    padding: "16px",
+    background: "#0d0d0d",
+    color: "#d8d8d8",
+    overflowX: "auto",
+    whiteSpace: "pre-wrap",
+    fontSize: "12px",
+    lineHeight: 1.5,
+    fontFamily: "monospace",
   },
   modal: {
     position: "fixed",
