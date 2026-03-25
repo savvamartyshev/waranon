@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import "./App.css";
 import DivisionBuilder from "./components/DivisionBuilder";
 import uiSpecificCountriesText from "./templates/UISpecificCountriesInfos.txt?raw";
 import divisionsText from "./templates/Divisions.txt?raw";
@@ -91,7 +92,6 @@ export default function App() {
     const baseWithoutOverrides = parsedDivisionRules.filter(
       (rule) => !customIds.has(rule.id)
     );
-
     return [...baseWithoutOverrides, ...custom];
   }, [parsedDivisionRules, project.customDivisionRules]);
 

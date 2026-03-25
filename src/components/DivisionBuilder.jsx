@@ -16,16 +16,7 @@ import { parseUnitEntries, buildUnitsByCategory } from "../generators/units";
 const categories = ["log", "inf", "art", "tnk", "rec", "aa", "hel", "air"];
 
 function createEmptyCategories() {
-  return {
-    log: [],
-    inf: [],
-    art: [],
-    tnk: [],
-    rec: [],
-    aa: [],
-    hel: [],
-    air: [],
-  };
+  return { log: [], inf: [], art: [], tnk: [], rec: [], aa: [], hel: [], air: [] };
 }
 
 export default function DivisionBuilder({
@@ -45,96 +36,60 @@ export default function DivisionBuilder({
   const [addMenuCategory, setAddMenuCategory] = useState(null);
 
   const localizationMap = useMemo(() => {
-    try {
-      return buildLocalizationMap(project.files.localizationText);
-    } catch (error) {
-      console.error("Failed to parse localization:", error);
-      return {};
-    }
+    try { return buildLocalizationMap(project.files.localizationText); }
+    catch { return {}; }
   }, [project.files.localizationText]);
 
   const parsedCountries = useMemo(() => {
     const text = project.files.uiSpecificCountriesText;
     if (!text) return [];
-
-    try {
-      return parseCountriesInfoEntries(text);
-    } catch (error) {
-      console.error("Failed to parse countries:", error);
-      return [];
-    }
+    try { return parseCountriesInfoEntries(text); }
+    catch { return []; }
   }, [project.files.uiSpecificCountriesText]);
 
   const parsedDivisions = useMemo(() => {
     const text = project.files.divisionsText;
     if (!text) return [];
-
-    try {
-      return parseDivisionEntries(text);
-    } catch (error) {
-      console.error("Failed to parse divisions:", error);
-      return [];
-    }
+    try { return parseDivisionEntries(text); }
+    catch { return []; }
   }, [project.files.divisionsText]);
 
   const parsedDivisionRules = useMemo(() => {
     const text = project.files.divisionRulesText;
     if (!text) return [];
-
-    try {
-      return parseDivisionRuleEntries(text);
-    } catch (error) {
-      console.error("Failed to parse division rules:", error);
-      return [];
-    }
+    try { return parseDivisionRuleEntries(text); }
+    catch { return []; }
   }, [project.files.divisionRulesText]);
 
   const parsedUnits = useMemo(() => {
     const text = project.files.unitsText;
     if (!text) return [];
-
-    try {
-      return parseUnitEntries(text);
-    } catch (error) {
-      console.error("Failed to parse units:", error);
-      return [];
-    }
+    try { return parseUnitEntries(text); }
+    catch { return []; }
   }, [project.files.unitsText]);
 
   const filteredDivisions = useMemo(() => {
     if (!division.countryId) return [];
-
-    return parsedDivisions.filter((entry) => entry.countryId === division.countryId);
+    return parsedDivisions.filter((e) => e.countryId === division.countryId);
   }, [parsedDivisions, division.countryId]);
 
   const filteredCustomDivisions = useMemo(() => {
     if (!division.countryId) return [];
-
-    return (project.customDivisions || []).filter(
-      (entry) => entry.countryId === division.countryId
-    );
+    return (project.customDivisions || []).filter((e) => e.countryId === division.countryId);
   }, [project.customDivisions, division.countryId]);
 
-  const allDivisionRules = useMemo(() => {
-    if (divisionRules.length) return divisionRules;
-    return [];
-  }, [divisionRules]);
+  const allDivisionRules = useMemo(() => divisionRules.length ? divisionRules : [], [divisionRules]);
 
   const selectedBaseDivisionEntry = useMemo(() => {
-    const baseDivision =
-      parsedDivisions.find((entry) => entry.id === division.baseDivision) || null;
-
-    const customDivision =
-      (project.customDivisions || []).find(
-        (entry) => entry.id === division.baseDivision
-      ) || null;
-
-    return customDivision || baseDivision;
+    const base = parsedDivisions.find((e) => e.id === division.baseDivision) || null;
+    const custom = (project.customDivisions || []).find((e) => e.id === division.baseDivision) || null;
+    return custom || base;
   }, [parsedDivisions, project.customDivisions, division.baseDivision]);
 
-  const activeRuleEntry = useMemo(() => {
-    return findDivisionRuleById(allDivisionRules, division.divisionRule);
-  }, [allDivisionRules, division.divisionRule]);
+  const activeRuleEntry = useMemo(
+    () => findDivisionRuleById(allDivisionRules, division.divisionRule),
+    [allDivisionRules, division.divisionRule]
+  );
 
   const baseRuleEntry = useMemo(() => {
     const baseRuleId = selectedBaseDivisionEntry?.divisionRule || "";
@@ -143,11 +98,8 @@ export default function DivisionBuilder({
 
   const derivedUnitsByCategory = useMemo(() => {
     if (!activeRuleEntry) return createEmptyCategories();
-
     return buildUnitsByCategory({
-      selectedDivision: {
-        divisionRule: activeRuleEntry.id,
-      },
+      selectedDivision: { divisionRule: activeRuleEntry.id },
       divisionRules: allDivisionRules,
       units: parsedUnits,
       localizationMap,
@@ -155,125 +107,68 @@ export default function DivisionBuilder({
   }, [activeRuleEntry, allDivisionRules, parsedUnits, localizationMap]);
 
   const allUnitsByCategory = useMemo(() => {
-    const categoryBuckets = createEmptyCategories();
-
+    const buckets = createEmptyCategories();
     for (const unit of parsedUnits) {
       const built = buildUnitsByCategory({
-        selectedDivision: {
-          divisionRule: "__temp__",
-        },
+        selectedDivision: { divisionRule: "__temp__" },
         divisionRules: [{ id: "__temp__", unitIds: [unit.id] }],
         units: parsedUnits,
         localizationMap,
       });
-
-      for (const category of categories) {
-        if (built[category]?.length) {
-          categoryBuckets[category].push({
+      for (const cat of categories) {
+        if (built[cat]?.length) {
+          buckets[cat].push({
             id: unit.id,
-            name:
-              localizationMap[unit.nameToken] ||
-              unit.className ||
-              unit.id,
+            name: localizationMap[unit.nameToken] || unit.className || unit.id,
             unitRole: unit.unitRole,
             factoryType: unit.factoryType,
           });
         }
       }
     }
-
-    return categoryBuckets;
+    return buckets;
   }, [parsedUnits, localizationMap]);
 
   const availableUnitsToAddByCategory = useMemo(() => {
     const currentIds = new Set(activeRuleEntry?.unitIds || []);
     const result = createEmptyCategories();
-
-    for (const category of categories) {
-      result[category] = (allUnitsByCategory[category] || []).filter(
-        (unit) => !currentIds.has(unit.id)
-      );
+    for (const cat of categories) {
+      result[cat] = (allUnitsByCategory[cat] || []).filter((u) => !currentIds.has(u.id));
     }
-
     return result;
   }, [allUnitsByCategory, activeRuleEntry]);
 
-  const currentRulePreview = useMemo(() => {
-    return serializeDivisionRule(activeRuleEntry);
-  }, [activeRuleEntry]);
-
-  const ruleDiff = useMemo(() => {
-    return diffDivisionRules(baseRuleEntry, activeRuleEntry);
-  }, [baseRuleEntry, activeRuleEntry]);
+  const currentRulePreview = useMemo(() => serializeDivisionRule(activeRuleEntry), [activeRuleEntry]);
+  const ruleDiff = useMemo(() => diffDivisionRules(baseRuleEntry, activeRuleEntry), [baseRuleEntry, activeRuleEntry]);
 
   function updateDivisionField(field, value) {
-    setProject((prev) => ({
-      ...prev,
-      division: {
-        ...prev.division,
-        [field]: value,
-      },
-    }));
+    setProject((prev) => ({ ...prev, division: { ...prev.division, [field]: value } }));
   }
 
   function getDivisionFriendlyName(entry) {
-    return (
-      localizationMap[entry.divisionNameToken] ||
-      entry.cfgName ||
-      entry.exportName ||
-      entry.id ||
-      "Unknown Division"
-    );
+    return localizationMap[entry.divisionNameToken] || entry.cfgName || entry.exportName || entry.id || "Unknown Division";
   }
 
   function handleCountryChange(value) {
-    if (value === "__ADD_CUSTOM_COUNTRY__") {
-      setShowCountryEditor(true);
-      return;
-    }
-
+    if (value === "__ADD_CUSTOM_COUNTRY__") { setShowCountryEditor(true); return; }
     setProject((prev) => ({
       ...prev,
-      division: {
-        ...prev.division,
-        countryId: value,
-        baseDivision: "",
-        divisionRule: "",
-      },
+      division: { ...prev.division, countryId: value, baseDivision: "", divisionRule: "" },
     }));
   }
 
   function handleBaseDivisionChange(value) {
-    if (value === "__ADD_CUSTOM_DIVISION__") {
-      setShowDivisionEditor(true);
-      return;
-    }
-
+    if (value === "__ADD_CUSTOM_DIVISION__") { setShowDivisionEditor(true); return; }
     if (!value) {
-      setProject((prev) => ({
-        ...prev,
-        division: {
-          ...prev.division,
-          baseDivision: "",
-          divisionRule: "",
-        },
-      }));
+      setProject((prev) => ({ ...prev, division: { ...prev.division, baseDivision: "", divisionRule: "" } }));
       return;
     }
-
-    const selectedDivisionEntry =
-      parsedDivisions.find((entry) => entry.id === value) ||
-      (project.customDivisions || []).find((entry) => entry.id === value);
-
-    const baseRuleId = selectedDivisionEntry?.divisionRule || "";
-
+    const entry =
+      parsedDivisions.find((e) => e.id === value) ||
+      (project.customDivisions || []).find((e) => e.id === value);
     setProject((prev) => ({
       ...prev,
-      division: {
-        ...prev.division,
-        baseDivision: value,
-        divisionRule: baseRuleId,
-      },
+      division: { ...prev.division, baseDivision: value, divisionRule: entry?.divisionRule || "" },
     }));
   }
 
@@ -282,11 +177,9 @@ export default function DivisionBuilder({
       const blob = await exportMod(project);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-
       link.href = url;
       link.download = `${project.meta?.modName || "mod"}.zip`;
       link.click();
-
       URL.revokeObjectURL(url);
     } catch (err) {
       alert(err.message);
@@ -294,101 +187,97 @@ export default function DivisionBuilder({
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <h1 style={styles.title}>Division Rules Builder</h1>
+    <div className="db-page">
+      {/* ── Header ─────────────────────────────── */}
+      <header className="db-header">
+        <div className="db-header-badge">⊞</div>
+        <span className="db-header-title">Division Rules Builder</span>
+        <span className="db-header-sep" />
+        <span className="db-header-sub">warno-mod-tools</span>
+        <div className="db-header-actions">
+          <button
+            type="button"
+            className="db-btn db-btn-primary"
+            onClick={handleExport}
+          >
+            ↓ Export Mod
+          </button>
+        </div>
+      </header>
 
-        <div style={styles.topBar}>
-          <div style={styles.fieldBox}>
-            <label style={styles.label}>Division Alliance</label>
+      {/* ── Main ───────────────────────────────── */}
+      <main className="db-main">
+
+        {/* Control bar */}
+        <div className="db-control-bar">
+          <div className="db-field">
+            <label className="db-label">Division Alliance</label>
             <select
+              className="db-select"
               value={division.alliance}
               onChange={(e) => updateDivisionField("alliance", e.target.value)}
-              style={styles.select}
             >
               <option value="NATO">NATO</option>
               <option value="PACT">PACT</option>
             </select>
           </div>
 
-          <div style={styles.fieldBox}>
-            <label style={styles.label}>Division Country</label>
+          <div className="db-field">
+            <label className="db-label">Division Country</label>
             <select
+              className="db-select"
               value={division.countryId}
               onChange={(e) => handleCountryChange(e.target.value)}
-              style={styles.select}
             >
               <option value="">Select country</option>
-
-              {parsedCountries.map((country) => (
-                <option key={country.tag} value={country.tag}>
-                  {country.tag} ({country.coalition})
-                </option>
+              {parsedCountries.map((c) => (
+                <option key={c.tag} value={c.tag}>{c.tag} ({c.coalition})</option>
               ))}
-
-              {(project.customCountries || []).map((country) => (
-                <option key={country.countryTag} value={country.countryTag}>
-                  {country.countryTag} (custom)
-                </option>
+              {(project.customCountries || []).map((c) => (
+                <option key={c.countryTag} value={c.countryTag}>{c.countryTag} (custom)</option>
               ))}
-
-              <option value="__ADD_CUSTOM_COUNTRY__">
-                + Add Custom Country
-              </option>
+              <option value="__ADD_CUSTOM_COUNTRY__">+ Add Custom Country</option>
             </select>
           </div>
 
-          <div style={styles.fieldBox}>
-            <label style={styles.label}>Base Division</label>
+          <div className="db-field">
+            <label className="db-label">Base Division</label>
             <select
+              className="db-select"
               value={division.baseDivision || ""}
               onChange={(e) => handleBaseDivisionChange(e.target.value)}
-              style={styles.select}
               disabled={!division.countryId}
             >
               <option value="">
                 {division.countryId ? "Select division" : "Select country first"}
               </option>
-
-              {filteredDivisions.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {getDivisionFriendlyName(entry)}
-                </option>
+              {filteredDivisions.map((e) => (
+                <option key={e.id} value={e.id}>{getDivisionFriendlyName(e)}</option>
               ))}
-
-              {filteredCustomDivisions.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.cfgName || entry.id} (custom)
-                </option>
+              {filteredCustomDivisions.map((e) => (
+                <option key={e.id} value={e.id}>{e.cfgName || e.id} (custom)</option>
               ))}
-
-              <option value="__ADD_CUSTOM_DIVISION__">
-                + Add Custom Division
-              </option>
+              <option value="__ADD_CUSTOM_DIVISION__">+ Add Custom Division</option>
             </select>
           </div>
 
-          <div style={styles.fieldBox}>
-            <label style={styles.label}>Active Rule</label>
+          <div className="db-field">
+            <label className="db-label">Active Rule</label>
             <input
               type="text"
+              className="db-input"
               value={division.divisionRule || ""}
               readOnly
-              style={styles.input}
+              placeholder="—"
             />
-          </div>
-
-          <div style={styles.exportBox}>
-            <button type="button" style={styles.exportButton} onClick={handleExport}>
-              Export Mod
-            </button>
           </div>
         </div>
 
-        <div style={styles.actionBar}>
+        {/* Action bar */}
+        <div className="db-action-bar">
           <button
             type="button"
-            style={styles.secondaryButton}
+            className="db-btn db-btn-secondary"
             onClick={onClearDivisionRule}
             disabled={!division.divisionRule}
           >
@@ -398,7 +287,7 @@ export default function DivisionBuilder({
           {selectedBaseDivisionEntry?.divisionRule && (
             <button
               type="button"
-              style={styles.secondaryButton}
+              className="db-btn db-btn-secondary"
               onClick={() =>
                 onCreateDivisionRuleFromBase?.({
                   newRuleId: division.divisionRule || selectedBaseDivisionEntry.divisionRule,
@@ -406,45 +295,42 @@ export default function DivisionBuilder({
                 })
               }
             >
-              Reload From Base Division
+              ↺ Reload From Base
             </button>
           )}
         </div>
 
-        <div style={styles.grid}>
-          {categories.map((category) => (
-            <div key={category} style={styles.column}>
-              <div style={styles.columnHeader}>{category.toUpperCase()}</div>
+        {/* Unit grid */}
+        <div className="db-grid">
+          {categories.map((cat) => (
+            <div key={cat} className="db-column">
+              <div className="db-column-header">{cat}</div>
 
-              {(derivedUnitsByCategory[category] || []).map((unit) => (
-                <div key={unit.id} style={styles.unitCard}>
-                  <div style={styles.unitIcon}>
-                    {unit.factoryType || unit.unitRole || "unit"}
+              {(derivedUnitsByCategory[cat] || []).map((unit) => (
+                <div key={unit.id} className="db-unit-card">
+                  <div className="db-unit-icon">
+                    {unit.factoryType || unit.unitRole || "—"}
                   </div>
-
-                  <div style={styles.unitNameWrap}>
-                    <div style={styles.unitName}>
-                      {unit.name || unit.id || "unit name"}
-                    </div>
-
+                  <div className="db-unit-body">
+                    <div className="db-unit-name">{unit.name || unit.id}</div>
                     <button
                       type="button"
-                      style={styles.removeButton}
+                      className="db-unit-remove"
                       onClick={() => onRemoveUnitFromDivisionRule?.(unit.id)}
                     >
-                      Remove
+                      ✕ Remove
                     </button>
                   </div>
                 </div>
               ))}
 
-              {addMenuCategory === category && (
-                <div style={styles.addMenu}>
-                  {(availableUnitsToAddByCategory[category] || []).slice(0, 12).map((unit) => (
+              {addMenuCategory === cat && (
+                <div className="db-add-menu">
+                  {(availableUnitsToAddByCategory[cat] || []).slice(0, 12).map((unit) => (
                     <button
                       key={unit.id}
                       type="button"
-                      style={styles.addMenuItem}
+                      className="db-add-menu-item"
                       onClick={() => {
                         onAddUnitToDivisionRule?.(unit.id);
                         setAddMenuCategory(null);
@@ -453,22 +339,18 @@ export default function DivisionBuilder({
                       {unit.name}
                     </button>
                   ))}
-
-                  {!(availableUnitsToAddByCategory[category] || []).length && (
-                    <div style={styles.emptyAddMenu}>No units available</div>
+                  {!(availableUnitsToAddByCategory[cat] || []).length && (
+                    <div className="db-add-menu-empty">No units available</div>
                   )}
                 </div>
               )}
 
               <button
                 type="button"
-                style={styles.addButton}
-                onClick={() =>
-                  setAddMenuCategory((current) =>
-                    current === category ? null : category
-                  )
-                }
+                className="db-add-btn"
+                onClick={() => setAddMenuCategory((cur) => cur === cat ? null : cat)}
                 disabled={!division.divisionRule}
+                title="Add unit"
               >
                 +
               </button>
@@ -476,322 +358,87 @@ export default function DivisionBuilder({
           ))}
         </div>
 
-        <div style={styles.previewSection}>
-          <div style={styles.previewHeader}>Current Rule Preview</div>
+        {/* Rule preview */}
+        <div className="db-preview">
+          <div className="db-preview-header">Current Rule Preview</div>
 
-          <div style={styles.diffRow}>
-            <div style={styles.diffBox}>
-              <div style={styles.diffTitle}>Added</div>
+          <div className="db-diff-row">
+            <div className="db-diff-box">
+              <div className="db-diff-title">Added</div>
               {ruleDiff.added.length ? (
                 ruleDiff.added.map((id) => (
-                  <div key={id} style={styles.diffItem}>+ {id}</div>
+                  <div key={id} className="db-diff-item-added">+ {id}</div>
                 ))
               ) : (
-                <div style={styles.diffEmpty}>No added units</div>
+                <div className="db-diff-empty">No added units</div>
               )}
             </div>
-
-            <div style={styles.diffBox}>
-              <div style={styles.diffTitle}>Removed</div>
+            <div className="db-diff-box">
+              <div className="db-diff-title">Removed</div>
               {ruleDiff.removed.length ? (
                 ruleDiff.removed.map((id) => (
-                  <div key={id} style={styles.diffItem}>- {id}</div>
+                  <div key={id} className="db-diff-item-removed">− {id}</div>
                 ))
               ) : (
-                <div style={styles.diffEmpty}>No removed units</div>
+                <div className="db-diff-empty">No removed units</div>
               )}
             </div>
           </div>
 
-          <pre style={styles.previewCode}>
+          <pre className="db-code">
             {currentRulePreview || "// No active division rule selected"}
           </pre>
         </div>
+      </main>
 
-        {showCountryEditor && (
-          <div style={styles.modal}>
-            <div style={styles.modalCard}>
-              <CountryBuilder
-                uiSpecificCountriesText={project.files.uiSpecificCountriesText}
-                onCancel={() => setShowCountryEditor(false)}
-                onSave={(customCountry) => {
-                  setProject((prev) => ({
-                    ...prev,
-                    customCountries: [...(prev.customCountries || []), customCountry],
-                    division: {
-                      ...prev.division,
-                      countryId: customCountry.countryTag,
-                    },
-                  }));
-
-                  setShowCountryEditor(false);
-                }}
-              />
-            </div>
+      {/* ── Modals ─────────────────────────────── */}
+      {showCountryEditor && (
+        <div className="db-modal-backdrop">
+          <div className="db-modal-card">
+            <CountryBuilder
+              uiSpecificCountriesText={project.files.uiSpecificCountriesText}
+              onCancel={() => setShowCountryEditor(false)}
+              onSave={(customCountry) => {
+                setProject((prev) => ({
+                  ...prev,
+                  customCountries: [...(prev.customCountries || []), customCountry],
+                  division: { ...prev.division, countryId: customCountry.countryTag },
+                }));
+                setShowCountryEditor(false);
+              }}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {showDivisionEditor && (
-          <div style={styles.modal}>
-            <div style={styles.modalCard}>
-              <CustomDivisionBuilder
-                divisionsText={project.files.divisionsText}
-                localizationText={project.files.localizationText}
-                uiSpecificCountriesText={project.files.uiSpecificCountriesText}
-                customCountries={project.customCountries || []}
-                customDivisions={project.customDivisions || []}
-                onCancel={() => setShowDivisionEditor(false)}
-                onSave={(customDivision) => {
-                  setProject((prev) => ({
-                    ...prev,
-                    customDivisions: [
-                      ...(prev.customDivisions || []),
-                      customDivision,
-                    ],
-                    division: {
-                      ...prev.division,
-                      countryId: customDivision.countryId,
-                      baseDivision: customDivision.id,
-                      divisionRule: customDivision.divisionRule || "",
-                      deckBudget: customDivision.deckBudget,
-                    },
-                  }));
-
-                  setShowDivisionEditor(false);
-                }}
-              />
-            </div>
+      {showDivisionEditor && (
+        <div className="db-modal-backdrop">
+          <div className="db-modal-card">
+            <CustomDivisionBuilder
+              divisionsText={project.files.divisionsText}
+              localizationText={project.files.localizationText}
+              uiSpecificCountriesText={project.files.uiSpecificCountriesText}
+              customCountries={project.customCountries || []}
+              customDivisions={project.customDivisions || []}
+              onCancel={() => setShowDivisionEditor(false)}
+              onSave={(customDivision) => {
+                setProject((prev) => ({
+                  ...prev,
+                  customDivisions: [...(prev.customDivisions || []), customDivision],
+                  division: {
+                    ...prev.division,
+                    countryId: customDivision.countryId,
+                    baseDivision: customDivision.id,
+                    divisionRule: customDivision.divisionRule || "",
+                    deckBudget: customDivision.deckBudget,
+                  },
+                }));
+                setShowDivisionEditor(false);
+              }}
+            />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#0b0b0b",
-    color: "#ffffff",
-    padding: "24px",
-    fontFamily: "Arial, sans-serif",
-  },
-  container: {
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
-  title: {
-    marginBottom: "24px",
-    color: "#ffffff",
-  },
-  topBar: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(160px, 1fr))",
-    gap: "16px",
-    marginBottom: "20px",
-    alignItems: "end",
-  },
-  actionBar: {
-    display: "flex",
-    gap: "12px",
-    marginBottom: "20px",
-  },
-  fieldBox: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-  },
-  label: {
-    fontSize: "13px",
-    fontWeight: "bold",
-  },
-  input: {
-    padding: "10px",
-    borderRadius: "10px",
-    border: "1px solid #666",
-    background: "#111",
-    color: "#fff",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "10px",
-    border: "1px solid #666",
-    background: "#111",
-    color: "#fff",
-  },
-  exportBox: {
-    display: "flex",
-    alignItems: "end",
-  },
-  exportButton: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "1px solid #888",
-    background: "#111",
-    color: "#fff",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  secondaryButton: {
-    padding: "10px 14px",
-    borderRadius: "10px",
-    border: "1px solid #888",
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(8, minmax(120px, 1fr))",
-    gap: "0",
-    border: "1px solid #888",
-    marginBottom: "24px",
-  },
-  column: {
-    borderRight: "1px solid #888",
-    minHeight: "260px",
-    display: "flex",
-    flexDirection: "column",
-    position: "relative",
-  },
-  columnHeader: {
-    borderBottom: "1px solid #888",
-    padding: "8px",
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-  unitCard: {
-    display: "grid",
-    gridTemplateColumns: "56px 1fr",
-    borderBottom: "1px solid #666",
-    minHeight: "58px",
-  },
-  unitIcon: {
-    borderRight: "1px solid #666",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    fontSize: "11px",
-    padding: "4px",
-    textAlign: "center",
-  },
-  unitNameWrap: {
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    padding: "6px",
-    gap: "6px",
-  },
-  unitName: {
-    fontSize: "12px",
-    textAlign: "center",
-  },
-  removeButton: {
-    border: "1px solid #666",
-    background: "#1a1a1a",
-    color: "#fff",
-    fontSize: "11px",
-    cursor: "pointer",
-    padding: "4px 6px",
-    borderRadius: "6px",
-  },
-  addButton: {
-    marginTop: "auto",
-    border: "none",
-    borderTop: "1px solid #666",
-    background: "#111",
-    color: "#fff",
-    fontSize: "20px",
-    cursor: "pointer",
-    padding: "8px",
-  },
-  addMenu: {
-    borderTop: "1px solid #666",
-    background: "#161616",
-    maxHeight: "220px",
-    overflowY: "auto",
-  },
-  addMenuItem: {
-    display: "block",
-    width: "100%",
-    textAlign: "left",
-    background: "transparent",
-    color: "#fff",
-    border: "none",
-    borderBottom: "1px solid #333",
-    padding: "8px",
-    cursor: "pointer",
-    fontSize: "12px",
-  },
-  emptyAddMenu: {
-    padding: "10px",
-    fontSize: "12px",
-    color: "#aaa",
-  },
-  previewSection: {
-    border: "1px solid #666",
-    borderRadius: "12px",
-    background: "#101010",
-    overflow: "hidden",
-  },
-  previewHeader: {
-    padding: "12px 16px",
-    borderBottom: "1px solid #666",
-    fontWeight: "bold",
-  },
-  diffRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "0",
-    borderBottom: "1px solid #666",
-  },
-  diffBox: {
-    padding: "12px 16px",
-    borderRight: "1px solid #666",
-  },
-  diffTitle: {
-    fontWeight: "bold",
-    marginBottom: "8px",
-  },
-  diffItem: {
-    fontSize: "12px",
-    marginBottom: "4px",
-    fontFamily: "monospace",
-  },
-  diffEmpty: {
-    fontSize: "12px",
-    color: "#aaa",
-  },
-  previewCode: {
-    margin: 0,
-    padding: "16px",
-    background: "#0d0d0d",
-    color: "#d8d8d8",
-    overflowX: "auto",
-    whiteSpace: "pre-wrap",
-    fontSize: "12px",
-    lineHeight: 1.5,
-    fontFamily: "monospace",
-  },
-  modal: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.6)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "24px",
-    zIndex: 1000,
-  },
-  modalCard: {
-    width: "720px",
-    maxWidth: "95vw",
-    maxHeight: "85vh",
-    overflowY: "auto",
-    background: "#111",
-    border: "1px solid #666",
-    borderRadius: "14px",
-    padding: "20px",
-  },
-};
