@@ -6,6 +6,21 @@ const path = require("path");
 const MAX_OPTION_SET_VALUES = 50;
 const MAX_EXAMPLES = 5;
 
+const OPTION_SET_EXCLUDED_FIELDS = new Set([
+  "DescriptorId",
+  "ClassNameForDebug",
+  "NameToken",
+  "ButtonTexture",
+  "UpgradeFromUnit",
+  "ValidOrders",
+  "UnlockableOrders",
+  "ReferenceMesh",
+  "MimeticName",
+  "BlackHoleKey",
+  "ShowRoomBlackHoleIdentifier",
+  "Connoisseur",
+]);
+
 function readFileSafe(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8");
@@ -16,326 +31,974 @@ function readFileSafe(filePath) {
   }
 }
 
-function collectEntityBlocks(text) {
-  const lines = text.split(/\r?\n/);
-  const blocks = [];
+function isWhitespace(ch) {
+  return /\s/.test(ch);
+}
 
-  let currentName = null;
-  let currentLines = [];
+function isIdentifierStart(ch) {
+  return /[A-Za-z_]/.test(ch);
+}
 
-  for (const line of lines) {
-    const headerMatch = line.match(
-      /^export\s+([A-Za-z0-9_]+)\s+is\s+TEntityDescriptor\b/,
-    );
+function isIdentifierPart(ch) {
+  return /[A-Za-z0-9_]/.test(ch);
+}
 
-    if (headerMatch) {
-      if (currentName) {
-        blocks.push({
-          id: currentName,
-          text: currentLines.join("\n"),
-        });
+class Parser {
+  constructor(text) {
+    this.text = text;
+    this.pos = 0;
+    this.len = text.length;
+  }
+
+  eof() {
+    return this.pos >= this.len;
+  }
+
+  peek(offset = 0) {
+    return this.text[this.pos + offset];
+  }
+
+  next() {
+    return this.text[this.pos++];
+  }
+
+  error(message) {
+    const start = Math.max(0, this.pos - 50);
+    const end = Math.min(this.len, this.pos + 50);
+    const snippet = this.text.slice(start, end).replace(/\n/g, "\\n");
+    throw new Error(`${message} at pos ${this.pos}. Context: ${snippet}`);
+  }
+
+  skipWhitespaceAndComments() {
+    while (!this.eof()) {
+      if (isWhitespace(this.peek())) {
+        this.pos++;
+        continue;
       }
 
-      currentName = headerMatch[1];
-      currentLines = [line];
-      continue;
+      if (this.peek() === "/" && this.peek(1) === "/") {
+        this.pos += 2;
+        while (!this.eof() && this.peek() !== "\n") {
+          this.pos++;
+        }
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  matchKeyword(word) {
+    this.skipWhitespaceAndComments();
+    const slice = this.text.slice(this.pos, this.pos + word.length);
+    if (slice === word) {
+      const nextChar = this.text[this.pos + word.length];
+      const prevChar = this.text[this.pos - 1];
+      const nextOk = !nextChar || !isIdentifierPart(nextChar);
+      const prevOk = !prevChar || !isIdentifierPart(prevChar);
+      if (prevOk && nextOk) {
+        this.pos += word.length;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  expectKeyword(word) {
+    if (!this.matchKeyword(word)) {
+      this.error(`Expected keyword "${word}"`);
+    }
+  }
+
+  matchChar(ch) {
+    this.skipWhitespaceAndComments();
+    if (this.peek() === ch) {
+      this.pos++;
+      return true;
+    }
+    return false;
+  }
+
+  expectChar(ch) {
+    if (!this.matchChar(ch)) {
+      this.error(`Expected "${ch}"`);
+    }
+  }
+
+  readIdentifier() {
+    this.skipWhitespaceAndComments();
+    if (!isIdentifierStart(this.peek())) {
+      this.error("Expected identifier");
     }
 
-    if (currentName) {
-      currentLines.push(line);
+    const start = this.pos;
+    this.pos++;
+
+    while (!this.eof() && isIdentifierPart(this.peek())) {
+      this.pos++;
     }
+
+    return this.text.slice(start, this.pos);
   }
 
-  if (currentName) {
-    blocks.push({
-      id: currentName,
-      text: currentLines.join("\n"),
-    });
+  readBareToken() {
+    this.skipWhitespaceAndComments();
+
+    const start = this.pos;
+
+    while (!this.eof()) {
+      const ch = this.peek();
+      if (
+        isWhitespace(ch) ||
+        ch === "," ||
+        ch === "]" ||
+        ch === ")" ||
+        ch === "(" ||
+        ch === "[" ||
+        ch === "|"
+      ) {
+        break;
+      }
+      this.pos++;
+    }
+
+    return this.text.slice(start, this.pos);
   }
 
-  return blocks;
+  readQuotedString() {
+    this.skipWhitespaceAndComments();
+    const quote = this.peek();
+
+    if (quote !== "'" && quote !== '"') {
+      this.error("Expected quoted string");
+    }
+
+    this.pos++;
+    let out = "";
+
+    while (!this.eof()) {
+      const ch = this.next();
+
+      if (ch === "\\") {
+        if (this.eof()) break;
+        out += ch + this.next();
+        continue;
+      }
+
+      if (ch === quote) {
+        return {
+          type: "string",
+          quote,
+          value: out,
+        };
+      }
+
+      out += ch;
+    }
+
+    this.error("Unterminated string");
+  }
+
+  readNumberOrWord() {
+    const token = this.readBareToken();
+
+    if (/^-?\d+(\.\d+)?$/.test(token)) {
+      return {
+        type: "number",
+        value: Number(token),
+        raw: token,
+      };
+    }
+
+    if (/^(True|False)$/i.test(token)) {
+      return {
+        type: "boolean",
+        value: /^true$/i.test(token),
+        raw: token,
+      };
+    }
+
+    if (/^GUID:\{[^}]+\}$/.test(token)) {
+      return {
+        type: "guid",
+        value: token,
+      };
+    }
+
+    if (token === "MAP") {
+      return {
+        type: "map_keyword",
+        value: token,
+      };
+    }
+
+    if (/^\$\/[A-Za-z0-9_./-]+$/.test(token)) {
+      return {
+        type: "resource_ref",
+        value: token,
+      };
+    }
+
+    if (/^~\/[A-Za-z0-9_./-]+$/.test(token)) {
+      return {
+        type: "local_ref",
+        value: token,
+      };
+    }
+
+    if (/^[A-Za-z0-9_]+\/[A-Za-z0-9_]+$/.test(token)) {
+      return {
+        type: "enum_path",
+        value: token,
+      };
+    }
+
+    return {
+      type: "symbol",
+      value: token,
+    };
+  }
+
+  parseArray() {
+    this.expectChar("[");
+    const items = [];
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+
+      if (this.matchChar("]")) {
+        break;
+      }
+
+      const item = this.parseValue();
+      items.push(item);
+
+      this.skipWhitespaceAndComments();
+      this.matchChar(",");
+    }
+
+    return {
+      type: "array",
+      items,
+    };
+  }
+
+  parseTuple() {
+    this.expectChar("(");
+    const items = [];
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+
+      if (this.matchChar(")")) {
+        break;
+      }
+
+      items.push(this.parseValue());
+
+      this.skipWhitespaceAndComments();
+      this.matchChar(",");
+    }
+
+    return {
+      type: "tuple",
+      items,
+    };
+  }
+
+  parseMap() {
+    this.expectKeyword("MAP");
+    const array = this.parseArray();
+
+    return {
+      type: "map",
+      entries: array.items,
+    };
+  }
+
+  parsePipeExpression(firstNode) {
+    if (!firstNode) {
+      this.error("Missing first node for pipe expression");
+    }
+
+    const items = [firstNode];
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+
+      if (!this.matchChar("|")) {
+        break;
+      }
+
+      const nextValue = this.parseSingleValue();
+      if (!nextValue) {
+        this.error('Expected value after "|"');
+      }
+
+      items.push(nextValue);
+    }
+
+    if (items.length === 1) {
+      return firstNode;
+    }
+
+    return {
+      type: "union",
+      items,
+    };
+  }
+
+  tryParseAssignment() {
+    const save = this.pos;
+    this.skipWhitespaceAndComments();
+
+    if (!isIdentifierStart(this.peek())) {
+      return null;
+    }
+
+    const name = this.readIdentifier();
+    this.skipWhitespaceAndComments();
+
+    if (!this.matchChar("=")) {
+      this.pos = save;
+      return null;
+    }
+
+    const value = this.parseValue();
+    return {
+      type: "assignment",
+      name,
+      value,
+    };
+  }
+
+  parseTypedObjectWithKnownName(typeName) {
+    this.skipWhitespaceAndComments();
+
+    if (!this.matchChar("(")) {
+      return {
+        type: "symbol",
+        value: typeName,
+      };
+    }
+
+    this.skipWhitespaceAndComments();
+
+    if (this.matchChar(")")) {
+      return {
+        type: "typed_object",
+        name: typeName,
+        fields: [],
+      };
+    }
+
+    const fields = [];
+    const items = [];
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+
+      if (this.matchChar(")")) {
+        break;
+      }
+
+      const assignment = this.tryParseAssignment();
+      if (assignment) {
+        fields.push(assignment);
+      } else {
+        items.push(this.parseValue());
+      }
+
+      this.skipWhitespaceAndComments();
+      this.matchChar(",");
+    }
+
+    if (items.length > 0 && fields.length === 0) {
+      return {
+        type: "typed_call",
+        name: typeName,
+        args: items,
+      };
+    }
+
+    if (items.length > 0) {
+      return {
+        type: "typed_object",
+        name: typeName,
+        fields,
+        items,
+      };
+    }
+
+    return {
+      type: "typed_object",
+      name: typeName,
+      fields,
+    };
+  }
+
+  parseSingleValue() {
+    this.skipWhitespaceAndComments();
+
+    const ch = this.peek();
+
+    if (!ch) {
+      this.error("Unexpected end of input while reading value");
+    }
+
+    if (ch === "'" || ch === '"') {
+      return this.readQuotedString();
+    }
+
+    if (ch === "[") {
+      return this.parseArray();
+    }
+
+    if (ch === "(") {
+      return this.parseTuple();
+    }
+
+    if (this.text.slice(this.pos, this.pos + 3) === "MAP") {
+      const after = this.text[this.pos + 3];
+      if (!after || /\s|\[/.test(after)) {
+        return this.parseMap();
+      }
+    }
+
+    if (isIdentifierStart(ch)) {
+      const save = this.pos;
+      const ident = this.readIdentifier();
+      this.skipWhitespaceAndComments();
+
+      if (this.peek() === "(") {
+        return this.parseTypedObjectWithKnownName(ident);
+      }
+
+      this.pos = save;
+      const token = this.readNumberOrWord();
+
+      if (
+        token.type === "symbol" &&
+        /^[A-Za-z_][A-Za-z0-9_]*$/.test(token.value)
+      ) {
+        const save2 = this.pos;
+        this.skipWhitespaceAndComments();
+        if (this.peek() === "(") {
+          return this.parseTypedObjectWithKnownName(token.value);
+        }
+        this.pos = save2;
+      }
+
+      return token;
+    }
+
+    if (ch === "~" || ch === "$" || /[-0-9]/.test(ch)) {
+      return this.readNumberOrWord();
+    }
+
+    this.error(`Unexpected character "${ch}"`);
+  }
+
+  parseValue() {
+    const first = this.parseSingleValue();
+    return this.parsePipeExpression(first);
+  }
+
+  parseEntityBody() {
+    const fields = [];
+
+    this.expectChar("(");
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+
+      if (this.matchChar(")")) {
+        break;
+      }
+
+      const assignment = this.tryParseAssignment();
+      if (!assignment) {
+        this.error("Expected field assignment in entity body");
+      }
+
+      fields.push(assignment);
+
+      this.skipWhitespaceAndComments();
+      this.matchChar(",");
+    }
+
+    return fields;
+  }
+
+  parseEntity() {
+    this.expectKeyword("export");
+    const name = this.readIdentifier();
+    this.expectKeyword("is");
+    const kind = this.readIdentifier();
+
+    if (kind !== "TEntityDescriptor") {
+      this.error(`Expected TEntityDescriptor, got ${kind}`);
+    }
+
+    const fields = this.parseEntityBody();
+
+    return {
+      type: "entity",
+      name,
+      kind,
+      fields,
+    };
+  }
+
+  parseFile() {
+    const entities = [];
+
+    while (true) {
+      this.skipWhitespaceAndComments();
+      if (this.eof()) break;
+
+      if (!this.matchKeyword("export")) {
+        this.error('Expected "export"');
+      }
+
+      this.pos -= "export".length;
+      entities.push(this.parseEntity());
+    }
+
+    return entities;
+  }
 }
 
-function detectValueType(rawValue) {
-  const value = rawValue.trim();
+function scalarType(node) {
+  if (!node) return "unknown";
 
-  if (/^(True|False)$/i.test(value)) return "boolean";
-  if (/^-?\d+(\.\d+)?$/.test(value)) return "number";
-  if (/^GUID:\{[^}]+\}$/.test(value)) return "guid";
-  if (/^'.*'$/.test(value)) return "single_quoted_string";
-  if (/^".*"$/.test(value)) return "double_quoted_string";
-  if (/^[A-Za-z0-9_]+\/[A-Za-z0-9_]+$/.test(value)) return "enum_path";
-  if (/^\$\/[A-Za-z0-9_/.\-]+$/.test(value)) return "resource_ref";
-  if (/^~\/[A-Za-z0-9_/.\-]+$/.test(value)) return "local_ref";
-  if (/^\[.*\]$/.test(value)) return "inline_array";
-  if (/^\(.*\)$/.test(value)) return "inline_block";
-  return "unknown";
+  switch (node.type) {
+    case "string":
+      return "string";
+    case "union":
+      return "union";
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "guid":
+      return "guid";
+    case "enum_path":
+      return "enum_path";
+    case "resource_ref":
+      return "resource_ref";
+    case "local_ref":
+      return "local_ref";
+    case "symbol":
+      return "symbol";
+    case "array":
+      return "array";
+    case "map":
+      return "map";
+    case "tuple":
+      return "tuple";
+    case "typed_object":
+      return "typed_object";
+    case "typed_call":
+      return "typed_call";
+    default:
+      return node.type || "unknown";
+  }
 }
 
-function normalizeValue(rawValue, type) {
-  const value = rawValue.trim();
+function nodeToExample(node) {
+  if (!node) return "null";
 
-  if (type === "single_quoted_string" || type === "double_quoted_string") {
-    return value.slice(1, -1);
+  switch (node.type) {
+    case "string":
+    case "guid":
+    case "enum_path":
+    case "resource_ref":
+    case "local_ref":
+    case "symbol":
+      return String(node.value);
+
+    case "number":
+    case "boolean":
+      return String(node.value);
+
+    case "array":
+      return `[${Array.isArray(node.items) ? node.items.length : 0} items]`;
+
+    case "map":
+      return `MAP[${Array.isArray(node.entries) ? node.entries.length : 0} entries]`;
+
+    case "tuple":
+      return `(${Array.isArray(node.items) ? node.items.length : 0} items)`;
+
+    case "union":
+      return Array.isArray(node.items)
+        ? node.items.map(nodeToExample).join(" | ")
+        : "union";
+
+    case "typed_object":
+      return `${node.name}(${Array.isArray(node.fields) ? node.fields.length : 0} fields)`;
+
+    case "typed_call":
+      return `${node.name}(${Array.isArray(node.args) ? node.args.length : 0} args)`;
+
+    default:
+      return node.type || "unknown";
   }
-
-  if (type === "boolean") {
-    return /^true$/i.test(value);
-  }
-
-  if (type === "number") {
-    return Number(value);
-  }
-
-  return value;
 }
 
-function ensureField(schema, fieldName) {
-  if (!schema[fieldName]) {
-    schema[fieldName] = {
+function ensureAccumulator(target, key) {
+  if (!target[key]) {
+    target[key] = {
       count: 0,
       types: new Set(),
-      values: new Set(),
-      valuesTruncated: false,
+      optionSetValues: new Set(),
+      optionSetValuesSkipped: false,
+      optionSetValuesTruncated: false,
       min: null,
       max: null,
       examples: [],
-      sources: new Set(),
     };
   }
-
-  return schema[fieldName];
+  return target[key];
 }
 
-function ensureModule(moduleSchema, moduleName) {
-  if (!moduleSchema[moduleName]) {
-    moduleSchema[moduleName] = {
-      count: 0,
-      inlineFields: {},
-    };
-  }
-
-  return moduleSchema[moduleName];
-}
-
-function addExample(field, value) {
-  if (field.examples.length >= MAX_EXAMPLES) return;
-  if (!field.examples.includes(value)) {
-    field.examples.push(value);
+function addExample(acc, value) {
+  if (acc.examples.length >= MAX_EXAMPLES) return;
+  if (!acc.examples.includes(value)) {
+    acc.examples.push(value);
   }
 }
 
-function addValueToField(field, type, value, sourceLabel) {
-  field.count += 1;
-  field.types.add(type);
-  field.sources.add(sourceLabel);
+function shouldCollectOptionSet(pathParts, node) {
+  const fieldName = pathParts[pathParts.length - 1] || "";
 
-  if (type === "number") {
-    field.min = field.min === null ? value : Math.min(field.min, value);
-    field.max = field.max === null ? value : Math.max(field.max, value);
-  } else if (
-    type === "boolean" ||
-    type === "single_quoted_string" ||
-    type === "double_quoted_string" ||
-    type === "enum_path"
+  if (OPTION_SET_EXCLUDED_FIELDS.has(fieldName)) {
+    return false;
+  }
+
+  if (
+    /Texture|Token|Descriptor|Mesh|BlackHole|Mimetic|Order|Connoisseur/i.test(
+      fieldName,
+    )
   ) {
-    if (field.values.size < MAX_OPTION_SET_VALUES) {
-      field.values.add(String(value));
-    } else {
-      field.valuesTruncated = true;
+    return false;
+  }
+
+  return (
+    node.type === "boolean" ||
+    node.type === "string" ||
+    node.type === "enum_path" ||
+    node.type === "symbol"
+  );
+}
+
+function primitiveOptionValue(node) {
+  if (node.type === "string") return node.value;
+  if (node.type === "boolean") return String(node.value);
+  if (node.type === "enum_path") return node.value;
+  if (node.type === "symbol") return node.value;
+  return null;
+}
+
+function updateAccumulator(acc, pathParts, node) {
+  acc.count += 1;
+  acc.types.add(scalarType(node));
+
+  if (node.type === "number") {
+    acc.min = acc.min === null ? node.value : Math.min(acc.min, node.value);
+    acc.max = acc.max === null ? node.value : Math.max(acc.max, node.value);
+  }
+
+  if (shouldCollectOptionSet(pathParts, node)) {
+    const v = primitiveOptionValue(node);
+    if (v !== null) {
+      if (acc.optionSetValues.size < MAX_OPTION_SET_VALUES) {
+        acc.optionSetValues.add(v);
+      } else {
+        acc.optionSetValuesTruncated = true;
+      }
     }
+  } else if (
+    node.type === "string" ||
+    node.type === "boolean" ||
+    node.type === "enum_path" ||
+    node.type === "symbol"
+  ) {
+    acc.optionSetValuesSkipped = true;
   }
 
-  addExample(field, String(value));
+  addExample(acc, nodeToExample(node));
 }
 
-function parseSimpleAssignmentsFromLine(line) {
-  const assignments = [];
-  const match = line.match(/^([A-Za-z0-9_]+)\s*=\s*(.+)$/);
+function walkNode(node, pathParts, pathSchema) {
+  const pathKey = pathParts.join(".");
+  const acc = ensureAccumulator(pathSchema, pathKey);
+  updateAccumulator(acc, pathParts, node);
 
-  if (!match) return assignments;
+  switch (node.type) {
+    case "array":
+      for (const item of node.items || []) {
+        walkNode(item, [...pathParts, "[]"], pathSchema);
+      }
+      break;
 
-  assignments.push({
-    fieldName: match[1],
-    rawValue: match[2].trim(),
-  });
+    case "map":
+      for (const entry of node.entries || []) {
+        walkNode(entry, [...pathParts, "MAP_ENTRY"], pathSchema);
+      }
+      break;
 
-  return assignments;
+    case "union":
+      if (Array.isArray(node.items)) {
+        for (let i = 0; i < node.items.length; i++) {
+          walkNode(node.items[i], [...pathParts, `|${i}`], pathSchema);
+        }
+      }
+      break;
+
+    case "tuple":
+      for (let i = 0; i < (node.items || []).length; i++) {
+        walkNode(node.items[i], [...pathParts, `#${i}`], pathSchema);
+      }
+      break;
+
+    case "typed_object":
+      {
+        const typedKey = [...pathParts, `<${node.name}>`].join(".");
+        const typedAcc = ensureAccumulator(pathSchema, typedKey);
+        typedAcc.count += 1;
+        typedAcc.types.add("typed_object_instance");
+        addExample(typedAcc, node.name);
+
+        for (const field of node.fields || []) {
+          walkNode(
+            field.value,
+            [...pathParts, node.name, field.name],
+            pathSchema,
+          );
+        }
+
+        for (let i = 0; i < (node.items || []).length; i++) {
+          walkNode(
+            node.items[i],
+            [...pathParts, node.name, `item${i}`],
+            pathSchema,
+          );
+        }
+      }
+      break;
+
+    case "typed_call":
+      for (let i = 0; i < (node.args || []).length; i++) {
+        walkNode(
+          node.args[i],
+          [...pathParts, node.name, `arg${i}`],
+          pathSchema,
+        );
+      }
+      break;
+
+    default:
+      break;
+  }
 }
 
-function parseInlineModuleAssignments(line) {
-  const results = [];
-
-  // matches:
-  // TFormationModuleDescriptor(TypeUnitFormation = 'Artillerie')
-  // TDangerousnessModuleDescriptor(Dangerousness  = 39)
-  // TUnitUpkeepModuleDescriptor( UpkeepPercentage = 1.0 )
-  const moduleMatch = line.match(/^([A-Za-z0-9_~/$]+)\s*\((.*)\)\s*,?\s*$/);
-
-  if (!moduleMatch) return results;
-
-  const moduleName = moduleMatch[1];
-  const inside = moduleMatch[2].trim();
-
-  if (!inside || !inside.includes("=")) {
-    return results;
-  }
-
-  const assignments = [];
-  const regex = /([A-Za-z0-9_]+)\s*=\s*([^,]+?)(?=(?:\s+[A-Za-z0-9_]+\s*=)|$)/g;
-
-  let match;
-  while ((match = regex.exec(inside)) !== null) {
-    assignments.push({
-      fieldName: match[1],
-      rawValue: match[2].trim(),
-    });
-  }
-
-  if (assignments.length > 0) {
-    results.push({
-      moduleName,
-      assignments,
-    });
-  }
-
-  return results;
+function collectEntityField(entity, fieldName) {
+  return entity.fields.find((f) => f.name === fieldName);
 }
 
-function analyzeBlocks(blocks) {
-  const schema = {};
+function summarizeModules(entities) {
   const moduleSchema = {};
+  const moduleUsage = {};
 
-  for (const block of blocks) {
-    const lines = block.text.split(/\r?\n/);
+  for (const entity of entities) {
+    const modulesField = collectEntityField(entity, "ModulesDescriptors");
+    if (!modulesField || modulesField.value.type !== "array") continue;
 
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) continue;
-      if (line.startsWith("//")) continue;
+    for (const item of modulesField.value.items) {
+      let moduleType = null;
 
-      // 1. top-level simple assignments
-      const topLevelAssignments = parseSimpleAssignmentsFromLine(line);
-      for (const assignment of topLevelAssignments) {
-        const type = detectValueType(assignment.rawValue);
-        const value = normalizeValue(assignment.rawValue, type);
-        const field = ensureField(schema, assignment.fieldName);
-
-        addValueToField(field, type, value, "top_level");
+      if (item.type === "typed_object") {
+        moduleType = item.name;
+      } else if (item.type === "typed_call") {
+        moduleType = item.name;
+      } else if (item.type === "local_ref") {
+        moduleType = "__local_ref__";
+      } else if (item.type === "resource_ref") {
+        moduleType = "__resource_ref__";
+      } else if (item.type === "symbol") {
+        moduleType = "__symbol_module__";
+      } else {
+        moduleType = `__${item.type}__`;
       }
 
-      // 2. inline module assignments
-      const inlineModules = parseInlineModuleAssignments(line);
-      for (const inlineModule of inlineModules) {
-        const mod = ensureModule(moduleSchema, inlineModule.moduleName);
-        mod.count += 1;
+      if (!moduleUsage[moduleType]) {
+        moduleUsage[moduleType] = {
+          count: 0,
+          examples: [],
+        };
+      }
 
-        for (const assignment of inlineModule.assignments) {
-          const type = detectValueType(assignment.rawValue);
-          const value = normalizeValue(assignment.rawValue, type);
+      moduleUsage[moduleType].count += 1;
+      addExample(moduleUsage[moduleType], nodeToExample(item));
 
-          const globalField = ensureField(schema, assignment.fieldName);
-          addValueToField(globalField, type, value, `module:${inlineModule.moduleName}`);
+      if (item.type === "typed_object") {
+        for (const field of item.fields || []) {
+          const key = `${moduleType}.${field.name}`;
+          const acc = ensureAccumulator(moduleSchema, key);
+          updateAccumulator(acc, [moduleType, field.name], field.value);
+        }
+      }
 
-          if (!mod.inlineFields[assignment.fieldName]) {
-            mod.inlineFields[assignment.fieldName] = {
-              count: 0,
-              types: new Set(),
-              values: new Set(),
-              valuesTruncated: false,
-              min: null,
-              max: null,
-              examples: [],
-            };
-          }
-
-          const moduleField = mod.inlineFields[assignment.fieldName];
-          moduleField.count += 1;
-          moduleField.types.add(type);
-
-          if (type === "number") {
-            moduleField.min =
-              moduleField.min === null ? value : Math.min(moduleField.min, value);
-            moduleField.max =
-              moduleField.max === null ? value : Math.max(moduleField.max, value);
-          } else if (
-            type === "boolean" ||
-            type === "single_quoted_string" ||
-            type === "double_quoted_string" ||
-            type === "enum_path"
-          ) {
-            if (moduleField.values.size < MAX_OPTION_SET_VALUES) {
-              moduleField.values.add(String(value));
-            } else {
-              moduleField.valuesTruncated = true;
-            }
-          }
-
-          addExample(moduleField, String(value));
+      if (item.type === "typed_call") {
+        for (let i = 0; i < (item.args || []).length; i++) {
+          const key = `${moduleType}.arg${i}`;
+          const acc = ensureAccumulator(moduleSchema, key);
+          updateAccumulator(acc, [moduleType, `arg${i}`], item.args[i]);
         }
       }
     }
   }
 
   return {
-    schema: finalizeSchema(schema),
-    modules: finalizeModuleSchema(moduleSchema),
+    moduleUsage: finalizeAccMap(moduleUsage),
+    moduleSchema: finalizeAccMap(moduleSchema),
   };
 }
 
-function finalizeSchema(schema) {
-  const out = {};
+function buildDescriptorSummary(entity) {
+  const fieldNames = entity.fields.map((f) => f.name);
+  const modulesField = collectEntityField(entity, "ModulesDescriptors");
 
-  for (const [fieldName, field] of Object.entries(schema)) {
-    out[fieldName] = {
-      count: field.count,
-      types: Array.from(field.types).sort(),
-      optionSetValues: Array.from(field.values).sort(),
-      optionSetValuesTruncated: field.valuesTruncated,
-      min: field.min,
-      max: field.max,
-      examples: field.examples,
-      sources: Array.from(field.sources).sort(),
-    };
+  const moduleTypes = [];
+  if (modulesField && modulesField.value.type === "array") {
+    for (const item of modulesField.value.items) {
+      if (item.type === "typed_object" || item.type === "typed_call") {
+        moduleTypes.push(item.name);
+      } else if (item.type === "local_ref") {
+        moduleTypes.push("__local_ref__");
+      } else if (item.type === "resource_ref") {
+        moduleTypes.push("__resource_ref__");
+      } else if (item.type === "symbol") {
+        moduleTypes.push("__symbol_module__");
+      } else {
+        moduleTypes.push(`__${item.type}__`);
+      }
+    }
   }
 
-  return out;
+  const descriptorId = collectEntityField(entity, "DescriptorId");
+  const className = collectEntityField(entity, "ClassNameForDebug");
+
+  return {
+    name: entity.name,
+    descriptorId:
+      descriptorId && descriptorId.value.type === "guid"
+        ? descriptorId.value.value
+        : descriptorId
+          ? nodeToExample(descriptorId.value)
+          : null,
+    className:
+      className && className.value.type === "string"
+        ? className.value.value
+        : className
+          ? nodeToExample(className.value)
+          : null,
+    fieldCount: fieldNames.length,
+    fields: fieldNames,
+    moduleCount: moduleTypes.length,
+    moduleTypes,
+  };
 }
 
-function finalizeModuleSchema(moduleSchema) {
+function finalizeAccMap(obj) {
   const out = {};
 
-  for (const [moduleName, moduleInfo] of Object.entries(moduleSchema)) {
-    const inlineFields = {};
+  for (const [key, acc] of Object.entries(obj)) {
+    out[key] = {
+      count: acc.count,
+      types: Array.from(acc.types || []).sort(),
+      optionSetValues: Array.from(acc.optionSetValues || []).sort(),
+      optionSetValuesSkipped: Boolean(acc.optionSetValuesSkipped),
+      optionSetValuesTruncated: Boolean(acc.optionSetValuesTruncated),
+      min: acc.min ?? null,
+      max: acc.max ?? null,
+      examples: acc.examples || [],
+    };
 
-    for (const [fieldName, field] of Object.entries(moduleInfo.inlineFields)) {
-      inlineFields[fieldName] = {
-        count: field.count,
-        types: Array.from(field.types).sort(),
-        optionSetValues: Array.from(field.values).sort(),
-        optionSetValuesTruncated: field.valuesTruncated,
-        min: field.min,
-        max: field.max,
-        examples: field.examples,
+    if ("count" in acc && !("types" in acc)) {
+      out[key] = {
+        count: acc.count,
+        examples: acc.examples || [],
       };
     }
-
-    out[moduleName] = {
-      count: moduleInfo.count,
-      inlineFields,
-    };
   }
 
   return out;
 }
 
-function buildTopLevelSummary(blocks, analysis) {
+function buildPathSchema(entities) {
+  const pathSchema = {};
+
+  for (const entity of entities) {
+    for (const field of entity.fields) {
+      walkNode(field.value, ["entity", field.name], pathSchema);
+    }
+  }
+
+  return finalizeAccMap(pathSchema);
+}
+
+function buildReport(inputFile, entities) {
+  const descriptorSummaries = entities.map(buildDescriptorSummary);
+  const pathSchema = buildPathSchema(entities);
+  const modules = summarizeModules(entities);
+
   return {
-    totalEntityDescriptors: blocks.length,
-    fieldsDiscovered: Object.keys(analysis.schema).length,
-    inlineModulesDiscovered: Object.keys(analysis.modules).length,
-    descriptorExamples: blocks.slice(0, 10).map((b) => b.id),
+    inputFile,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalEntityDescriptors: entities.length,
+      descriptorExamples: entities.slice(0, 10).map((e) => e.name),
+      uniquePathCount: Object.keys(pathSchema).length,
+      uniqueModuleSchemaPaths: Object.keys(modules.moduleSchema).length,
+      uniqueModuleTypes: Object.keys(modules.moduleUsage).length,
+    },
+    descriptors: descriptorSummaries,
+    pathSchema,
+    moduleUsage: modules.moduleUsage,
+    moduleSchema: modules.moduleSchema,
   };
+}
+
+function run(inputPath, outputPath) {
+  const resolvedInput = path.resolve(inputPath);
+  const text = readFileSafe(resolvedInput);
+
+  let entities;
+  try {
+    const parser = new Parser(text);
+    entities = parser.parseFile();
+  } catch (error) {
+    console.error("Parse failed:");
+    console.error(error.message);
+    process.exit(1);
+  }
+
+  const report = buildReport(resolvedInput, entities);
+  const json = JSON.stringify(report, null, 2);
+
+  if (outputPath) {
+    const resolvedOutput = path.resolve(outputPath);
+    fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
+    fs.writeFileSync(resolvedOutput, json, "utf8");
+    console.log(`Wrote schema report to ${resolvedOutput}`);
+  } else {
+    console.log(json);
+  }
+
+  return report;
 }
 
 function main() {
@@ -344,35 +1007,20 @@ function main() {
 
   if (!inputPath) {
     console.error(
-      "Usage: node scripts/analyze-units-structure.cjs <input-file> [output-json]",
+      "Usage: node scripts/analyze-units-schema.cjs <input-file> [output-json]",
     );
     process.exit(1);
   }
 
-  const resolvedInput = path.resolve(inputPath);
-  const text = readFileSafe(resolvedInput);
-
-  const blocks = collectEntityBlocks(text);
-  const analysis = analyzeBlocks(blocks);
-
-  const report = {
-    inputFile: resolvedInput,
-    generatedAt: new Date().toISOString(),
-    summary: buildTopLevelSummary(blocks, analysis),
-    schema: analysis.schema,
-    modules: analysis.modules,
-  };
-
-  const json = JSON.stringify(report, null, 2);
-
-  if (outputPath) {
-    const resolvedOutput = path.resolve(outputPath);
-    fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
-    fs.writeFileSync(resolvedOutput, json, "utf8");
-    console.log(`Wrote structure report to ${resolvedOutput}`);
-  } else {
-    console.log(json);
-  }
+  run(inputPath, outputPath);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  Parser,
+  run,
+  buildReport,
+};

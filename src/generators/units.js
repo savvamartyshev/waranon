@@ -19,12 +19,24 @@ export function parseUnitEntries(text) {
     const buttonTextureMatch = block.match(/ButtonTexture\s*=\s*'([^']+)'/);
     const menuIconTextureMatch = block.match(/MenuIconTexture\s*=\s*'([^']+)'/);
 
+    // This looks for:
+    // TProductionModuleDescriptor
+    // (
+    //     FactoryType = EFactory/Tanks
+    // )
+    //
+    // It allows any content inside that production module block before FactoryType.
+    const factoryTypeMatch = block.match(
+      /TProductionModuleDescriptor\s*\([\s\S]*?FactoryType\s*=\s*EFactory\/([A-Za-z0-9_]+)/,
+    );
+
     entries.push({
       id,
       className: classNameMatch?.[1] || "",
       coalition: coalitionMatch?.[1] || "",
       countryId: countryMatch?.[1] || "",
       unitRole: unitRoleMatch?.[1] || "",
+      factoryType: factoryTypeMatch?.[1] || "",
       nameToken: nameTokenMatch?.[1] || "",
       buttonTexture: buttonTextureMatch?.[1] || "",
       menuIconTexture: menuIconTextureMatch?.[1] || "",
@@ -35,46 +47,29 @@ export function parseUnitEntries(text) {
   return entries;
 }
 
-export function mapUnitRoleToCategory(unitRole) {
-  const normalized = (unitRole || "").toUpperCase();
-
-  switch (normalized) {
-    case "LOG":
-    case "SUPPORT":
-    case "CV":
+export function mapFactoryTypeToCategory(factoryType) {
+  switch (factoryType) {
+    case "Logistic":
       return "log";
-
-    case "INF":
-    case "INFANTRY":
+    case "Infantry":
       return "inf";
-
-    case "ART":
-    case "ARTILLERY":
-    case "MORTAR":
+    case "Art":
       return "art";
-
-    case "TNK":
-    case "TANK":
+    case "Tanks":
       return "tnk";
-
-    case "REC":
-    case "RECON":
+    case "Recons":
       return "rec";
-
-    case "AA":
     case "DCA":
-    case "SAM":
       return "aa";
-
-    case "HEL":
-    case "HELO":
-    case "HELICOPTER":
+    case "Helis":
       return "hel";
-
-    case "AIR":
-    case "PLANE":
+    case "Planes":
       return "air";
 
+    // You can decide how you want to handle Defense / UniversalFactory.
+    // For now, these return null so they won't show up.
+    case "Defense":
+    case "UniversalFactory":
     default:
       return null;
   }
@@ -125,7 +120,7 @@ export function buildUnitsByCategory({
     const unit = unitMap.get(unitId);
     if (!unit) continue;
 
-    const category = mapUnitRoleToCategory(unit.unitRole);
+    const category = mapFactoryTypeToCategory(unit.factoryType);
     if (!category) continue;
 
     result[category].push({
@@ -134,11 +129,9 @@ export function buildUnitsByCategory({
       countryId: unit.countryId,
       coalition: unit.coalition,
       unitRole: unit.unitRole,
+      factoryType: unit.factoryType,
       nameToken: unit.nameToken,
-      name:
-        localizationMap[unit.nameToken] ||
-        unit.className ||
-        unit.id,
+      name: localizationMap[unit.nameToken] || unit.className || unit.id,
       buttonTexture: unit.buttonTexture,
       menuIconTexture: unit.menuIconTexture,
     });
