@@ -18,10 +18,7 @@ import {
 
 function createEmptyProject() {
   return {
-    meta: {
-      modName: "sampleMod",
-      version: "0.1.0",
-    },
+    meta: { modName: "sampleMod", version: "0.1.0" },
     division: {
       baseDivision: "",
       alliance: "NATO",
@@ -49,16 +46,7 @@ function createEmptyProject() {
     customCountries: [],
     customDivisions: [],
     customDivisionRules: [],
-    unitsByCategory: {
-      log: [],
-      inf: [],
-      art: [],
-      tnk: [],
-      rec: [],
-      aa: [],
-      hel: [],
-      air: [],
-    },
+    unitsByCategory: { log: [], inf: [], art: [], tnk: [], rec: [], aa: [], hel: [], air: [] },
     customUnits: [],
     customWeapons: [],
     customAmmo: [],
@@ -70,10 +58,7 @@ function createEmptyProject() {
       unitsText,
       deckSerializerText,
     },
-    validation: {
-      errors: [],
-      warnings: [],
-    },
+    validation: { errors: [], warnings: [] },
   };
 }
 
@@ -82,17 +67,15 @@ export default function App() {
   const [showCountryEditor, setShowCountryEditor] = useState(false);
   const [showDivisionEditor, setShowDivisionEditor] = useState(false);
 
-  const parsedDivisionRules = useMemo(() => {
-    return parseDivisionRuleEntries(project.files.divisionRulesText);
-  }, [project.files.divisionRulesText]);
+  const parsedDivisionRules = useMemo(
+    () => parseDivisionRuleEntries(project.files.divisionRulesText),
+    [project.files.divisionRulesText]
+  );
 
   const allDivisionRules = useMemo(() => {
     const custom = project.customDivisionRules || [];
-    const customIds = new Set(custom.map((rule) => rule.id));
-    const baseWithoutOverrides = parsedDivisionRules.filter(
-      (rule) => !customIds.has(rule.id)
-    );
-    return [...baseWithoutOverrides, ...custom];
+    const customIds = new Set(custom.map((r) => r.id));
+    return [...parsedDivisionRules.filter((r) => !customIds.has(r.id)), ...custom];
   }, [parsedDivisionRules, project.customDivisionRules]);
 
   function updateCurrentDivisionRule(transform) {
@@ -100,26 +83,20 @@ export default function App() {
       const currentRuleId = prev.division.divisionRule;
       if (!currentRuleId) return prev;
 
-      const existingCustomRule = (prev.customDivisionRules || []).find(
-        (rule) => rule.id === currentRuleId
-      );
-
+      const existingCustomRule = (prev.customDivisionRules || []).find((r) => r.id === currentRuleId);
       if (existingCustomRule) {
         return {
           ...prev,
-          customDivisionRules: prev.customDivisionRules.map((rule) =>
-            rule.id === currentRuleId ? transform(rule) : rule
+          customDivisionRules: prev.customDivisionRules.map((r) =>
+            r.id === currentRuleId ? transform(r) : r
           ),
         };
       }
 
-      const parsedBaseRule = parsedDivisionRules.find(
-        (rule) => rule.id === currentRuleId
-      );
+      const parsedBaseRule = parsedDivisionRules.find((r) => r.id === currentRuleId);
       if (!parsedBaseRule) return prev;
 
       const newCustomRule = transform(cloneDivisionRule(parsedBaseRule, currentRuleId));
-
       return {
         ...prev,
         customDivisionRules: [...(prev.customDivisionRules || []), newCustomRule],
@@ -144,19 +121,14 @@ export default function App() {
       const baseRule =
         findDivisionRuleById(parsedDivisionRules, baseRuleId) ||
         findDivisionRuleById(prev.customDivisionRules || [], baseRuleId);
-
       const clonedRule = cloneDivisionRule(baseRule, newRuleId);
-
       return {
         ...prev,
         customDivisionRules: [
-          ...(prev.customDivisionRules || []).filter((rule) => rule.id !== newRuleId),
+          ...(prev.customDivisionRules || []).filter((r) => r.id !== newRuleId),
           clonedRule,
         ],
-        division: {
-          ...prev.division,
-          divisionRule: newRuleId,
-        },
+        division: { ...prev.division, divisionRule: newRuleId },
       };
     });
   }

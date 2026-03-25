@@ -150,6 +150,34 @@ html, body, #root {
   color: var(--text-muted);
 }
 
+/* ── Select with icon wrapper ──────────────────────────────── */
+/*
+ * Wraps a <select> with an optional image to its left.
+ * The image is absolutely positioned so the select's text
+ * is padded to make room for it.
+ */
+.db-select-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.db-select-with-icon .db-flag-img,
+.db-select-with-icon .db-emblem-img {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* When the select has a leading icon, add left padding to the text */
+.db-select--has-icon {
+  padding-left: 36px !important;
+}
+
+/* ── Inputs / Selects ──────────────────────────────────────── */
 .db-input,
 .db-select {
   padding: 9px 12px;
@@ -260,27 +288,45 @@ html, body, #root {
 /* ── Unit card ─────────────────────────────────────────────── */
 .db-unit-card {
   display: grid;
-  grid-template-columns: 40px 1fr;
+  grid-template-columns: 48px 1fr;
   border-bottom: 1px solid var(--border-subtle);
-  min-height: 54px;
+  min-height: 58px;
   transition: background 0.12s;
 }
 
 .db-unit-card:hover { background: var(--bg-hover); }
 
+/* Left icon cell — houses the unit portrait */
 .db-unit-icon {
   border-right: 1px solid var(--border-subtle);
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 9px;
-  font-family: var(--font-mono);
-  padding: 4px;
-  color: var(--text-muted);
+  overflow: hidden;
   background: var(--bg-raised);
-  text-transform: uppercase;
-  text-align: center;
-  line-height: 1.2;
+}
+
+/* ── Unit portrait ─────────────────────────────────────────── */
+.db-unit-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Shown when no portrait PNG is found */
+.db-unit-portrait--empty {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-overlay);
+  /* subtle diagonal-stripe texture as placeholder */
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,0.03) 4px,
+    rgba(255,255,255,0.03) 8px
+  );
 }
 
 .db-unit-body {
@@ -317,6 +363,18 @@ html, body, #root {
 
 .db-unit-remove:hover { background: var(--danger-dim); border-color: var(--danger); }
 
+/* ── Flag / emblem standalone images ───────────────────────── */
+.db-flag-img {
+  border-radius: 2px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.db-emblem-img {
+  display: block;
+  flex-shrink: 0;
+}
+
 /* ── Add button & menu ─────────────────────────────────────── */
 .db-add-btn {
   margin-top: auto;
@@ -341,15 +399,18 @@ html, body, #root {
   overflow-y: auto;
 }
 
+/* Unit row inside the add-menu dropdown */
 .db-add-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: transparent;
   color: var(--text-secondary);
   border: none;
   border-bottom: 1px solid var(--border-subtle);
-  padding: 7px 10px;
+  padding: 6px 10px;
   cursor: pointer;
   font-size: 11px;
   font-family: var(--font-ui);
@@ -357,6 +418,17 @@ html, body, #root {
 }
 
 .db-add-menu-item:hover { background: var(--accent-dim); color: var(--text-primary); }
+
+/* Small portrait thumbnail inside the add-menu row */
+.db-add-menu-portrait {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
 
 .db-add-menu-empty {
   padding: 10px;
