@@ -20,6 +20,7 @@ import {
   resolveEmblemUrl,
   resolveUnitPortraitUrl,
 } from "../hooks/useImages";
+import UnitEditor from "./UnitEditor";
 
 const categories = ["log", "inf", "art", "tnk", "rec", "aa", "hel", "air"];
 
@@ -101,6 +102,10 @@ export default function DivisionBuilder({
   setShowCountryEditor,
   showDivisionEditor,
   setShowDivisionEditor,
+  showUnitEditor,
+  setShowUnitEditor,
+  editingUnitId,
+  setEditingUnitId,
   divisionRules = [],
   onClearDivisionRule,
   onAddUnitToDivisionRule,
@@ -189,6 +194,25 @@ export default function DivisionBuilder({
     }
   }, [project.files.unitsText]);
 
+  const allUnits = useMemo(() => {
+    const editedMap = new Map(
+      (project.customUnits || []).map((unit) => [unit.id, unit]),
+    );
+
+    return parsedUnits.map((unit) => {
+      const edited = editedMap.get(unit.id);
+      if (!edited) return unit;
+
+      return {
+        ...unit,
+        countryId: edited.countryId ?? unit.countryId,
+        nameToken: edited.nameToken ?? unit.nameToken,
+        editedDisplayName: edited.displayName ?? null,
+        sourceType: "edited",
+      };
+    });
+  }, [parsedUnits, project.customUnits]);
+
   // ── Derived selections ─────────────────────────────────────────────────────
 
   const filteredDivisions = useMemo(() => {
@@ -207,6 +231,18 @@ export default function DivisionBuilder({
     () => (divisionRules.length ? divisionRules : []),
     [divisionRules],
   );
+
+  const editingBaseUnit = useMemo(() => {
+    if (!editingUnitId) return null;
+    return parsedUnits.find((u) => u.id === editingUnitId) || null;
+  }, [parsedUnits, editingUnitId]);
+
+  const existingCustomUnit = useMemo(() => {
+    if (!editingUnitId) return null;
+    return (
+      (project.customUnits || []).find((u) => u.id === editingUnitId) || null
+    );
+  }, [project.customUnits, editingUnitId]);
 
   const selectedBaseDivisionEntry = useMemo(() => {
     const base =
@@ -233,14 +269,14 @@ export default function DivisionBuilder({
     return buildUnitsByCategory({
       selectedDivision: { divisionRule: activeRuleEntry.id },
       divisionRules: allDivisionRules,
-      units: parsedUnits,
+      units: allUnits,
       localizationMap,
     });
   }, [activeRuleEntry, allDivisionRules, parsedUnits, localizationMap]);
 
   const allUnitsByCategory = useMemo(() => {
     const buckets = createEmptyCategories();
-    for (const unit of parsedUnits) {
+    for (const unit of allUnits) {
       const built = buildUnitsByCategory({
         selectedDivision: { divisionRule: "__temp__" },
         divisionRules: [{ id: "__temp__", unitIds: [unit.id] }],
@@ -536,91 +572,117 @@ export default function DivisionBuilder({
 
         {/* ── Unit grid ── */}
         <div className="db-grid-shell">
-        <div className="db-grid">
-          {categories.map((cat) => (
-            <div key={cat} className="db-column">
-              <div className="db-column-header">{cat}</div>
+          <div className="db-grid">
+            {categories.map((cat) => (
+              <div key={cat} className="db-column">
+                <div className="db-column-header">{cat}</div>
 
-              {(derivedUnitsByCategory[cat] || []).map((unit) => {
-                const portraitUrl = resolveUnitPortraitUrl({
-                  className: unit.className,
-                  unitId: unit.id,
-                });
-                return (
-                  <div key={unit.id} className="db-unit-card">
-                    <div className="db-unit-image-wrap">
-                      <UnitPortrait src={portraitUrl} alt={unit.name} />
-                    </div>
+                {(derivedUnitsByCategory[cat] || []).map((unit) => {
+                  const portraitUrl = resolveUnitPortraitUrl({
+                    className: unit.className,
+                    unitId: unit.id,
+                  });
+                  return (
+                    <div key={unit.id} className="db-unit-card">
+                      <div className="db-unit-image-wrap">
+                        <UnitPortrait src={portraitUrl} alt={unit.name} />
+                      </div>
 
-                    <div className="db-unit-body">
-                      <div className="db-unit-name">{unit.name || unit.id}</div>
-                      <button
-                        type="button"
-                        className="db-unit-remove"
-                        onClick={() => onRemoveUnitFromDivisionRule?.(unit.id)}
-                      >
-                        ✕ Remove
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                      <div className="db-unit-body">
+                        <div className="db-unit-name">
+                          {unit.name || unit.id}
+                        </div>
 
-              {addMenuCategory === cat && (
-                <div className="db-add-menu">
-                  {(availableUnitsToAddByCategory[cat] || [])
-                    .slice(0, 12)
-                    .map((unit) => {
-                      const portraitUrl = resolveUnitPortraitUrl({
-                        className: unit.className,
-                        unitId: unit.id,
-                      });
-                      return (
-                        <button
-                          key={unit.id}
-                          type="button"
-                          className="db-add-menu-item"
-                          onClick={() => {
-                            onAddUnitToDivisionRule?.(unit.id);
-                            setAddMenuCategory(null);
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            marginTop: "8px",
                           }}
                         >
-                          {portraitUrl && (
-                            <img
-                              src={portraitUrl}
-                              alt=""
-                              className="db-add-menu-portrait"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          )}
-                          {unit.name}
-                        </button>
-                      );
-                    })}
-                  {!(availableUnitsToAddByCategory[cat] || []).length && (
-                    <div className="db-add-menu-empty">No units available</div>
-                  )}
-                </div>
-              )}
+                          <button
+                            type="button"
+                            className="db-unit-edit"
+                            onClick={() => {
+                              setEditingUnitId?.(unit.id);
+                              setShowUnitEditor?.(true);
+                            }}
+                          >
+                            Edit
+                          </button>
 
-              <button
-                type="button"
-                className="db-add-btn"
-                onClick={() =>
-                  setAddMenuCategory((cur) => (cur === cat ? null : cat))
-                }
-                disabled={!division.divisionRule}
-                title="Add unit"
-              >
-                +
-              </button>
-            </div>
-          ))}
+                          <button
+                            type="button"
+                            className="db-unit-remove"
+                            onClick={() =>
+                              onRemoveUnitFromDivisionRule?.(unit.id)
+                            }
+                          >
+                            ✕ Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {addMenuCategory === cat && (
+                  <div className="db-add-menu">
+                    {(availableUnitsToAddByCategory[cat] || [])
+                      .slice(0, 12)
+                      .map((unit) => {
+                        const portraitUrl = resolveUnitPortraitUrl({
+                          className: unit.className,
+                          unitId: unit.id,
+                        });
+                        return (
+                          <button
+                            key={unit.id}
+                            type="button"
+                            className="db-add-menu-item"
+                            onClick={() => {
+                              onAddUnitToDivisionRule?.(unit.id);
+                              setAddMenuCategory(null);
+                            }}
+                          >
+                            {portraitUrl && (
+                              <img
+                                src={portraitUrl}
+                                alt=""
+                                className="db-add-menu-portrait"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            )}
+                            {unit.name}
+                          </button>
+                        );
+                      })}
+                    {!(availableUnitsToAddByCategory[cat] || []).length && (
+                      <div className="db-add-menu-empty">
+                        No units available
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="db-add-btn"
+                  onClick={() =>
+                    setAddMenuCategory((cur) => (cur === cat ? null : cat))
+                  }
+                  disabled={!division.divisionRule}
+                  title="Add unit"
+                >
+                  +
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-        </div>
-        
+
         {/* ── Preview ── */}
         <div className="db-preview">
           <div className="db-preview-header">Current Rule Preview</div>
@@ -713,6 +775,39 @@ export default function DivisionBuilder({
           </div>
         </div>
       )}
+
+      {showUnitEditor && editingBaseUnit && (
+        <div className="db-modal-backdrop">
+          <div className="db-modal-card">
+            <UnitEditor
+              unit={editingBaseUnit}
+              unitsText={project.files.unitsText}
+              localizationText={project.files.localizationText}
+              uiSpecificCountriesText={project.files.uiSpecificCountriesText}
+              customCountries={project.customCountries || []}
+              existingCustomUnit={existingCustomUnit}
+              onCancel={() => {
+                setShowUnitEditor(false);
+                setEditingUnitId("");
+              }}
+              onSave={(editedUnit) => {
+                setProject((prev) => ({
+                  ...prev,
+                  customUnits: [
+                    ...(prev.customUnits || []).filter(
+                      (u) => u.id !== editedUnit.id,
+                    ),
+                    editedUnit,
+                  ],
+                }));
+                setShowUnitEditor(false);
+                setEditingUnitId("");
+              }}
+            />
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }

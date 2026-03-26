@@ -46,7 +46,16 @@ function createEmptyProject() {
     customCountries: [],
     customDivisions: [],
     customDivisionRules: [],
-    unitsByCategory: { log: [], inf: [], art: [], tnk: [], rec: [], aa: [], hel: [], air: [] },
+    unitsByCategory: {
+      log: [],
+      inf: [],
+      art: [],
+      tnk: [],
+      rec: [],
+      aa: [],
+      hel: [],
+      air: [],
+    },
     customUnits: [],
     customWeapons: [],
     customAmmo: [],
@@ -66,16 +75,21 @@ export default function App() {
   const [project, setProject] = useState(createEmptyProject());
   const [showCountryEditor, setShowCountryEditor] = useState(false);
   const [showDivisionEditor, setShowDivisionEditor] = useState(false);
+  const [showUnitEditor, setShowUnitEditor] = useState(false);
+  const [editingUnitId, setEditingUnitId] = useState("");
 
   const parsedDivisionRules = useMemo(
     () => parseDivisionRuleEntries(project.files.divisionRulesText),
-    [project.files.divisionRulesText]
+    [project.files.divisionRulesText],
   );
 
   const allDivisionRules = useMemo(() => {
     const custom = project.customDivisionRules || [];
     const customIds = new Set(custom.map((r) => r.id));
-    return [...parsedDivisionRules.filter((r) => !customIds.has(r.id)), ...custom];
+    return [
+      ...parsedDivisionRules.filter((r) => !customIds.has(r.id)),
+      ...custom,
+    ];
   }, [parsedDivisionRules, project.customDivisionRules]);
 
   function updateCurrentDivisionRule(transform) {
@@ -83,23 +97,32 @@ export default function App() {
       const currentRuleId = prev.division.divisionRule;
       if (!currentRuleId) return prev;
 
-      const existingCustomRule = (prev.customDivisionRules || []).find((r) => r.id === currentRuleId);
+      const existingCustomRule = (prev.customDivisionRules || []).find(
+        (r) => r.id === currentRuleId,
+      );
       if (existingCustomRule) {
         return {
           ...prev,
           customDivisionRules: prev.customDivisionRules.map((r) =>
-            r.id === currentRuleId ? transform(r) : r
+            r.id === currentRuleId ? transform(r) : r,
           ),
         };
       }
 
-      const parsedBaseRule = parsedDivisionRules.find((r) => r.id === currentRuleId);
+      const parsedBaseRule = parsedDivisionRules.find(
+        (r) => r.id === currentRuleId,
+      );
       if (!parsedBaseRule) return prev;
 
-      const newCustomRule = transform(cloneDivisionRule(parsedBaseRule, currentRuleId));
+      const newCustomRule = transform(
+        cloneDivisionRule(parsedBaseRule, currentRuleId),
+      );
       return {
         ...prev,
-        customDivisionRules: [...(prev.customDivisionRules || []), newCustomRule],
+        customDivisionRules: [
+          ...(prev.customDivisionRules || []),
+          newCustomRule,
+        ],
       };
     });
   }
@@ -113,7 +136,9 @@ export default function App() {
   }
 
   function handleRemoveUnitFromCurrentDivisionRule(unitId) {
-    updateCurrentDivisionRule((rule) => removeUnitFromDivisionRule(rule, unitId));
+    updateCurrentDivisionRule((rule) =>
+      removeUnitFromDivisionRule(rule, unitId),
+    );
   }
 
   function createDivisionRuleFromBase({ newRuleId, baseRuleId }) {
@@ -141,6 +166,10 @@ export default function App() {
       setShowCountryEditor={setShowCountryEditor}
       showDivisionEditor={showDivisionEditor}
       setShowDivisionEditor={setShowDivisionEditor}
+      showUnitEditor={showUnitEditor}
+      setShowUnitEditor={setShowUnitEditor}
+      editingUnitId={editingUnitId}
+      setEditingUnitId={setEditingUnitId}
       divisionRules={allDivisionRules}
       onClearDivisionRule={handleClearCurrentDivisionRule}
       onAddUnitToDivisionRule={handleAddUnitToCurrentDivisionRule}
