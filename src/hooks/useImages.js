@@ -106,13 +106,11 @@ export function resolveEmblemUrl({ emblemTexture, cfgName, customEmblemUrl } = {
   if (customEmblemUrl) return customEmblemUrl;
 
   if (emblemTexture) {
-    // Try with the Texture_Division_Emblem_ prefix stripped
     const stripped = emblemTexture
       .replace(/^Texture_Division_Emblem_/i, "")
       .toLowerCase();
     if (divisionIndex[stripped]) return divisionIndex[stripped];
 
-    // Also try the full name as-is
     const full = emblemTexture.toLowerCase();
     if (divisionIndex[full]) return divisionIndex[full];
   }
@@ -120,6 +118,9 @@ export function resolveEmblemUrl({ emblemTexture, cfgName, customEmblemUrl } = {
   if (cfgName) {
     const key = cfgName.toLowerCase();
     if (divisionIndex[key]) return divisionIndex[key];
+
+    const trimmedMulti = key.replace(/_multi$/i, "");
+    if (divisionIndex[trimmedMulti]) return divisionIndex[trimmedMulti];
   }
 
   return null;
