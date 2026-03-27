@@ -1,3 +1,14 @@
+function matchNumber(block, regex) {
+  const match = block.match(regex);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function matchString(block, regex) {
+  return block.match(regex)?.[1] || "";
+}
+
 export function parseUnitEntries(text) {
   if (!text || typeof text !== "string") return [];
 
@@ -11,35 +22,138 @@ export function parseUnitEntries(text) {
     const id = match[1];
     const block = match[2];
 
-    const classNameMatch = block.match(/ClassNameForDebug\s*=\s*'([^']+)'/);
-    const coalitionMatch = block.match(/Coalition\s*=\s*ECoalition\/([A-Z]+)/);
-    const countryMatch = block.match(/MotherCountry\s*=\s*'([^']+)'/);
-    const unitRoleMatch = block.match(/UnitRole\s*=\s*'([^']+)'/);
-    const nameTokenMatch = block.match(/NameToken\s*=\s*'([^']+)'/);
-    const buttonTextureMatch = block.match(/ButtonTexture\s*=\s*'([^']+)'/);
-    const menuIconTextureMatch = block.match(/MenuIconTexture\s*=\s*'([^']+)'/);
+    const className = matchString(block, /ClassNameForDebug\s*=\s*'([^']+)'/);
+    const coalition = matchString(
+      block,
+      /Coalition\s*=\s*ECoalition\/([A-Z]+)/,
+    );
+    const countryId = matchString(block, /MotherCountry\s*=\s*'([^']+)'/);
+    const unitRole = matchString(block, /UnitRole\s*=\s*'([^']+)'/);
+    const nameToken = matchString(block, /NameToken\s*=\s*'([^']+)'/);
+    const buttonTexture = matchString(block, /ButtonTexture\s*=\s*'([^']+)'/);
+    const menuIconTexture = matchString(
+      block,
+      /MenuIconTexture\s*=\s*'([^']+)'/,
+    );
 
-    // This looks for:
-    // TProductionModuleDescriptor
-    // (
-    //     FactoryType = EFactory/Tanks
-    // )
-    //
-    // It allows any content inside that production module block before FactoryType.
-    const factoryTypeMatch = block.match(
+    const factoryType = matchString(
+      block,
       /TProductionModuleDescriptor\s*\([\s\S]*?FactoryType\s*=\s*EFactory\/([A-Za-z0-9_]+)/,
+    );
+
+    const displayRoadSpeedInKmph = matchNumber(
+      block,
+      /DisplayRoadSpeedInKmph\s*=\s*([0-9.]+)/,
+    );
+
+    const unitConcealmentBonus = matchNumber(
+      block,
+      /UnitConcealmentBonus\s*=\s*([0-9.]+)/,
+    );
+
+    const maxPhysicalDamages = matchNumber(
+      block,
+      /MaxPhysicalDamages\s*=\s*([0-9.]+)/,
+    );
+
+    const dangerousness = matchNumber(
+      block,
+      /TDangerousnessModuleDescriptor\s*\(\s*Dangerousness\s*=\s*([0-9.]+)/,
+    );
+
+    const maxSpeedInKmph = matchNumber(block, /MaxSpeedInKmph\s*=\s*([0-9.]+)/);
+
+    const speedBonusFactorOnRoad = matchNumber(
+      block,
+      /SpeedBonusFactorOnRoad\s*=\s*([0-9.]+)/,
+    );
+
+    const maxAccelerationGRU = matchNumber(
+      block,
+      /MaxAccelerationGRU\s*=\s*([0-9.]+)/,
+    );
+
+    const maxDecelerationGRU = matchNumber(
+      block,
+      /MaxDecelerationGRU\s*=\s*([0-9.]+)/,
+    );
+
+    const tempsDemiTour = matchNumber(block, /TempsDemiTour\s*=\s*([0-9.]+)/);
+
+    const engineCooldownTime = matchNumber(
+      block,
+      /EngineCooldownTime\s*=\s*([0-9.]+)/,
+    );
+
+    const fuelCapacity = matchNumber(block, /FuelCapacity\s*=\s*([0-9.]+)/);
+
+    const fuelMoveDuration = matchNumber(
+      block,
+      /FuelMoveDuration\s*=\s*([0-9.]+)/,
+    );
+
+    const visionStandard = matchNumber(
+      block,
+      /\(\s*EVisionRange\/Standard,\s*([0-9.]+)\s*\)/,
+    );
+
+    const visionLowAltitude = matchNumber(
+      block,
+      /\(\s*EVisionRange\/LowAltitude,\s*([0-9.]+)\s*\)/,
+    );
+
+    const visionHighAltitude = matchNumber(
+      block,
+      /\(\s*EVisionRange\/HighAltitude,\s*([0-9.]+)\s*\)/,
+    );
+
+    const opticalStandard = matchNumber(
+      block,
+      /\(\s*EOpticalStrength\/Standard,\s*([0-9.]+)\s*\)/,
+    );
+
+    const opticalLowAltitude = matchNumber(
+      block,
+      /\(\s*EOpticalStrength\/LowAltitude,\s*([0-9.]+)\s*\)/,
+    );
+
+    const opticalHighAltitude = matchNumber(
+      block,
+      /\(\s*EOpticalStrength\/HighAltitude,\s*([0-9.]+)\s*\)/,
     );
 
     entries.push({
       id,
-      className: classNameMatch?.[1] || "",
-      coalition: coalitionMatch?.[1] || "",
-      countryId: countryMatch?.[1] || "",
-      unitRole: unitRoleMatch?.[1] || "",
-      factoryType: factoryTypeMatch?.[1] || "",
-      nameToken: nameTokenMatch?.[1] || "",
-      buttonTexture: buttonTextureMatch?.[1] || "",
-      menuIconTexture: menuIconTextureMatch?.[1] || "",
+      className,
+      coalition,
+      countryId,
+      unitRole,
+      factoryType,
+      nameToken,
+      buttonTexture,
+      menuIconTexture,
+
+      displayRoadSpeedInKmph,
+      unitConcealmentBonus,
+      maxPhysicalDamages,
+      dangerousness,
+
+      maxSpeedInKmph,
+      speedBonusFactorOnRoad,
+      maxAccelerationGRU,
+      maxDecelerationGRU,
+      tempsDemiTour,
+      engineCooldownTime,
+      fuelCapacity,
+      fuelMoveDuration,
+
+      visionStandard,
+      visionLowAltitude,
+      visionHighAltitude,
+      opticalStandard,
+      opticalLowAltitude,
+      opticalHighAltitude,
+
       rawBlock: block,
     });
   }
@@ -131,9 +245,28 @@ export function buildUnitsByCategory({
       unitRole: unit.unitRole,
       factoryType: unit.factoryType,
       nameToken: unit.nameToken,
-      name: localizationMap[unit.nameToken] || unit.className || unit.id,
+      name: unit.displayName || localizationMap[unit.nameToken] || unit.className || unit.id,
       buttonTexture: unit.buttonTexture,
       menuIconTexture: unit.menuIconTexture,
+
+      displayRoadSpeedInKmph: unit.displayRoadSpeedInKmph,
+      unitConcealmentBonus: unit.unitConcealmentBonus,
+      maxPhysicalDamages: unit.maxPhysicalDamages,
+      dangerousness: unit.dangerousness,
+      maxSpeedInKmph: unit.maxSpeedInKmph,
+      speedBonusFactorOnRoad: unit.speedBonusFactorOnRoad,
+      maxAccelerationGRU: unit.maxAccelerationGRU,
+      maxDecelerationGRU: unit.maxDecelerationGRU,
+      tempsDemiTour: unit.tempsDemiTour,
+      engineCooldownTime: unit.engineCooldownTime,
+      fuelCapacity: unit.fuelCapacity,
+      fuelMoveDuration: unit.fuelMoveDuration,
+      visionStandard: unit.visionStandard,
+      visionLowAltitude: unit.visionLowAltitude,
+      visionHighAltitude: unit.visionHighAltitude,
+      opticalStandard: unit.opticalStandard,
+      opticalLowAltitude: unit.opticalLowAltitude,
+      opticalHighAltitude: unit.opticalHighAltitude,
     });
   }
 

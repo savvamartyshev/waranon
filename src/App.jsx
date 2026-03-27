@@ -86,6 +86,7 @@ export default function App() {
   const allDivisionRules = useMemo(() => {
     const custom = project.customDivisionRules || [];
     const customIds = new Set(custom.map((r) => r.id));
+
     return [
       ...parsedDivisionRules.filter((r) => !customIds.has(r.id)),
       ...custom,
@@ -100,6 +101,7 @@ export default function App() {
       const existingCustomRule = (prev.customDivisionRules || []).find(
         (r) => r.id === currentRuleId,
       );
+
       if (existingCustomRule) {
         return {
           ...prev,
@@ -117,6 +119,7 @@ export default function App() {
       const newCustomRule = transform(
         cloneDivisionRule(parsedBaseRule, currentRuleId),
       );
+
       return {
         ...prev,
         customDivisionRules: [
@@ -136,9 +139,7 @@ export default function App() {
   }
 
   function handleRemoveUnitFromCurrentDivisionRule(unitId) {
-    updateCurrentDivisionRule((rule) =>
-      removeUnitFromDivisionRule(rule, unitId),
-    );
+    updateCurrentDivisionRule((rule) => removeUnitFromDivisionRule(rule, unitId));
   }
 
   function createDivisionRuleFromBase({ newRuleId, baseRuleId }) {
@@ -146,11 +147,17 @@ export default function App() {
       const baseRule =
         findDivisionRuleById(parsedDivisionRules, baseRuleId) ||
         findDivisionRuleById(prev.customDivisionRules || [], baseRuleId);
+
+      if (!baseRule) return prev;
+
       const clonedRule = cloneDivisionRule(baseRule, newRuleId);
+
       return {
         ...prev,
         customDivisionRules: [
-          ...(prev.customDivisionRules || []).filter((r) => r.id !== newRuleId),
+          ...(prev.customDivisionRules || []).filter(
+            (r) => r.id !== newRuleId,
+          ),
           clonedRule,
         ],
         division: { ...prev.division, divisionRule: newRuleId },
