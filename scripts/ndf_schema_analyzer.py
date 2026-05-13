@@ -13,6 +13,24 @@ Usage:
 
   Defaults to UniteDescriptor.txt if no files are given.
   Output is written to ndf_schema.json (and also printed to stdout).
+
+  How to run on other files:
+
+
+# Single file (default)
+python scripts/ndf_schema_analyzer.py
+
+# Specific file
+python scripts/ndf_schema_analyzer.py src/templates/DivisionRules.txt
+
+# Multiple files at once (aggregates across all)
+python scripts/ndf_schema_analyzer.py src/templates/*.txt
+Sample of what you're getting — for TProductionModuleDescriptor:
+
+FactoryType: enum → 8 options (EFactory/Art, EFactory/DCA, EFactory/Helis, etc.)
+ProductionTime: integer → range [-1, 5]
+ProductionRessourcesNeeded[]: integer → range [1, 350]
+This gives you exactly what you need to define interfaces, input validation min/max, and dropdown option lists. Ready to run against the other template files whenever you are.
 """
 
 import re
@@ -135,9 +153,10 @@ def extract_value(text: str) -> tuple:
 
 # ── Schema storage ──────────────────────────────────────────────────────────
 class FieldInfo:
-    MAX_VALUES = 500
+    _COLLECT_MAX = 500   # max unique values to collect internally
+    _DISPLAY_MAX = 20    # max values to show in output (excess → "...")
 
-    __slots__ = ("types", "values", "min_val", "max_val", "count")
+    __slots__ = ("types", "values", "min_val", "max_val", "count", "example")
 
     def __init__(self):
         self.types = set()
@@ -145,10 +164,20 @@ class FieldInfo:
         self.min_val = None
         self.max_val = None
         self.count = 0
+        self.example = None  # first observed value, for non-numeric fields
 
     def record(self, raw: str, kind: str):
         self.types.add(kind)
         self.count += 1
+
+        # Capture the first seen value as an example (skip structural/raw kinds)
+        if self.example is None and kind not in ("integer", "float", "object", "raw"):
+            if kind in ("array", "map"):
+                # Truncate long literals for readability
+                self.example = (raw[:100] + "...") if len(raw) > 100 else raw
+            else:
+                self.example = raw.strip("'\"")
+
         if kind in ("float", "integer"):
             try:
                 n = float(raw)
@@ -157,13 +186,24 @@ class FieldInfo:
             except ValueError:
                 pass
         elif kind in ("string", "enum"):
-            if len(self.values) < self.MAX_VALUES:
+            if len(self.values) < self._COLLECT_MAX:
                 self.values.add(raw.strip("'\""))
+
+    def add_value(self, stripped: str):
+        """Add a pre-stripped value directly (used when bubbling array item values up)."""
+        if len(self.values) < self._COLLECT_MAX:
+            self.values.add(stripped)
 
     def to_dict(self) -> dict:
         d = {"types": sorted(self.types), "count": self.count}
+        if self.example is not None:
+            d["example"] = self.example
         if self.values:
-            d["values"] = sorted(self.values)
+            sorted_vals = sorted(self.values)
+            if len(sorted_vals) > self._DISPLAY_MAX:
+                d["values"] = sorted_vals[: self._DISPLAY_MAX] + ["..."]
+            else:
+                d["values"] = sorted_vals
         if self.min_val is not None:
             d["min"] = self.min_val
             d["max"] = self.max_val
@@ -213,11 +253,12 @@ def parse_module_body(text: str, module_type: str, prefix: str = ""):
                 parse_module_body(nested_body, module_type, f"{field_path}.")
 
         elif kind in ("array", "map"):
-            _schema[module_type][field_path].record(kind, kind)
-            # Scan array / map items
+            parent_info = _schema[module_type][field_path]
+            parent_info.record(raw, kind)
+            # Scan array / map items; also bubble their values up to the parent field
             bracket = raw.index("[")
             inner = raw[bracket + 1 : matching_close(raw, bracket, "[", "]")]
-            scan_collection_items(inner, module_type, f"{field_path}[]")
+            scan_collection_items(inner, module_type, f"{field_path}[]", parent_info)
 
         else:
             _schema[module_type][field_path].record(raw, kind)
@@ -225,7 +266,7 @@ def parse_module_body(text: str, module_type: str, prefix: str = ""):
         i = val_start + consumed
 
 
-def scan_collection_items(inner: str, module_type: str, field_path: str):
+def scan_collection_items(inner: str, module_type: str, field_path: str, parent_info=None):
     """Extract and record scalar items (and descend into nested module objects)."""
     i = 0
     n = len(inner)
@@ -255,6 +296,9 @@ def scan_collection_items(inner: str, module_type: str, field_path: str):
             pass  # nested collections — skip for now
         else:
             _schema[module_type][field_path].record(raw, kind)
+            # Bubble string/enum/reference values up to the parent array field
+            if parent_info is not None and kind in ("string", "enum", "local_reference", "global_reference"):
+                parent_info.add_value(raw.strip("'\""))
 
         i += consumed
 
@@ -265,7 +309,8 @@ def analyze_file(path: str):
     # Strip // comments
     text = re.sub(r"//[^\n]*", "", text)
 
-    export_pat = re.compile(r"\bexport\s+(\w+)\s+is\s+(\w+)\s*\(", re.DOTALL)
+    # Matches both "export NAME is TYPE (" and "NAME is TYPE (" (no export keyword)
+    export_pat = re.compile(r"(?:export\s+)?(\w+)\s+is\s+(\w+)\s*\(", re.DOTALL)
     count = 0
     for m in export_pat.finditer(text):
         export_type = m.group(2)
@@ -295,7 +340,12 @@ def main():
         for module, fields in sorted(_schema.items())
     }
 
-    out_path = Path("ndf_schema.json")
+    if len(files) == 1:
+        stem = Path(files[0]).stem
+        out_path = Path(f"ndf_schema_{stem}.json")
+    else:
+        out_path = Path("ndf_schema_combined.json")
+
     out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"\nSchema written to: {out_path.resolve()}", file=sys.stderr)
     print(f"Module types found: {len(result)}", file=sys.stderr)
